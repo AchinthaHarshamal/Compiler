@@ -106,3 +106,65 @@ Instructions
 Write-up for PA2
 ----------------
 
+How the string constants lexing is implemented?
+	
+	To lexing a string constant, three states are used.
+		1. STRING state  => to indicate a start of an string constant occured
+		2. ESCAPE state  => to handle escaped characters
+		3. SKIPSTR state => to neglect a string constant if an error occured
+	A buffer (string_buf) is used to assemble the entire string constant.	
+	A string constant is started by " in cool. Therefore, when a " is found in
+	in the input stream. The state is set to STRING to indicate that a start of
+	a string constant has occured previously. The value of the string constant is
+	assembled in the string_buf until a " or unescaped newline is found. Meaning of
+	the next " is, end of the string constant. So the assembled string is stored in
+	the string table and corresponding token(STR_CONST) is returned. Meaning of 
+	reaching an unescaped newline is the string constant is not terminated. So an 
+	error is returned.
+
+	There are some characters which are not allowed in a string constant in cool.
+	They are,
+		\x00 => the null char
+		\n   => unterminated newline
+		EOF  => end of file
+	if any of these three charachters found while lexer is in the STRING state
+	that is an error. So an error is returned. Also, the rest of the string should
+	be neglected. The SKIPSTR state is used to neglect the rest of the string constant.
+	If an error occured, the state is changed to SKIPSTR. In skip string state, any
+	input is discarded until it reaches a " or an unescaped new line(end of string
+	constant). Then the state is set back to INITIAL state to resume the lexing.
+
+	When there is a \ in input stream. the next char is an escaped char. The state
+	ESCAPE is used to handle these chars. When a \ is met, the state is set to ESCAPE.
+	In this state the the char after the \ is checked.
+	If it is,
+		b => \b is added to the string buffer
+		t => \t is added to the string buffer
+		n => \n is added to the string buffer
+		f => \f is added to the string buffer
+	The char itself is added to the string buffer for any other char.
+	While adding a char to the string buffer, it is checked whether the length of 
+	assembled string is greater than the maximum string constant length.
+	If so error is returned and the state is set to SKIPSTR to neglect the rest.
+	After successful adding of an escaped char, the state is set back to STRING to
+	read the rest of the string.
+
+	Any combination of characters except above cases is a valid portion of the string
+	constant. So, they are concatinated with the currently assembeled string constant
+	that is already in the string buffer. Before concatination, it is checked whether
+	the string buffer is overflows after concatination of new portion. If so the string
+	constant is too long. An error is returned and the state is set to SKIPSTR to 
+	neglect the rest of the string.	
+
+
+
+
+
+
+
+
+
+
+ 
+	
+

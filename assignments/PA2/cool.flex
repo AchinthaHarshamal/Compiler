@@ -149,7 +149,7 @@ ERROR		.
 (?i:not)	{ return (NOT);}
 
  /*
-	Below two rules are fro keywords, true and false.
+	Below two rules are for keywords, true and false.
 	for these two variables first letter must be a lowercase letter and
 	the rest is case insensitive.
 	the corresponding semantic value is stored in the symbol table
@@ -319,24 +319,47 @@ f(?i:alse)	{
 <SKIPSTR>\\\n           {curr_lineno++;}
 <SKIPSTR>.              {}
 
-
+ /*
+ 	the following rule is for handle object ID's.
+	Object ID is starting from a lowercase letter and
+	rest can contain letters,numbers and _
+	The regex is defined in definition area.
+	The ID is stored in symbol table and corresponding token is returned
+ */
 {OBJECTID}	{ 
 			cool_yylval.symbol = idtable.add_string(yytext,yyleng);
 			return (OBJECTID);
 		}
 
+ /*
+ 	the following rule is for handle type ID's.
+	Type ID is starting from a uppercase letter and
+	rest can contain letters,numbers and _
+	The regex is defined in definition area.
+	The ID is stored in symbol table and corresponding token is returned
+ */
 {TYPEID}	{
 			cool_yylval.symbol = idtable.add_string(yytext,yyleng);
 			return (TYPEID);
 		}
-
+ /*
+ 	the following rule is for handle integers.
+	The value is stored in symbol table and corresponding token is returned
+ */
 {INTEGER}	{
 			cool_yylval.symbol = inttable.add_string(yytext,yyleng);
 			return (INT_CONST);
 		}
-
+ /*
+ 	there are few symbols in cool language.
+	+,-,(,) etc.
+	the symbol is returened.
+ */
 {SYMBOLS}	{ return (yytext[0]);}
 
+ /*
+	Anything that does not match above rules is an error.
+ */
 {ERROR}		{ 
 		 	cool_yylval.error_msg = yytext;
 		  	return (ERROR);
