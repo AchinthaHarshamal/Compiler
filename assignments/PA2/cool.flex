@@ -52,44 +52,60 @@ extern YYSTYPE cool_yylval;
 %x COMMENT
 
 
-
-DARROW          =>
-ASSIGN		<-
-LE		<=
-
-STRING_START	\"
-
-
-OBJECTID	[a-z][a-zA-Z0-9_]*
-TYPEID		[A-Z][a-zA-Z0-9_]*
-
-WHITESPACE	[ \t\r\f\v]*
-NEWLINE		\n
-
-
 SINGLELINECOMMENTS	(--.*)
 MULTILINE_COMMENTS_BEGINING	\(\*
 UNMATCHED	"*)"
 
+WHITESPACE	[ \t\r\f\v]
+NEWLINE		\n
+
+CLASS		(?i:class) 
+ELSE		(?i:else)   
+FI 		(?i:fi)      
+IF 		(?i:if)      
+IN 		(?i:in)      
+INHERITS 	(?i:inherits)
+LET 		(?i:let)    
+LOOP 		(?i:loop)  
+POOL 		(?i:pool)  
+THEN 		(?i:then)  
+WHILE 		(?i:while)    
+CASE 		(?i:case)  
+ESAC 		(?i:esac)  
+OF 		(?i:of)      
+NEW 		(?i:new)    
+ISVOID 		(?i:isvoid)  
+NOT 		(?i:not)    
+TRUE 		t(?i:rue)  
+FALSE 		f(?i:alse) 
+
+
+
+STRING_START	\"
+
+OBJECTID	[a-z][a-zA-Z0-9_]*
+TYPEID		[A-Z][a-zA-Z0-9_]*
 INTEGER		[0-9]+
 
 SYMBOLS		[\.\@\~\*\/\+\-\:\;\=\<\,\(\)\{\}]
+DARROW         =>
+ASSIGN		<-
+LE		<=
+
 ERROR		.
+
+
 %%
 
  /*
-  *  Nested comments
+  * comments
+  * Multiline comments any text surrounded with (*...*),
+  * there might be nested comments.
   */
 
-
 {MULTILINE_COMMENTS_BEGINING}	{comment_depth++ ; BEGIN(COMMENT);}
-{UNMATCHED}			{	
-					cool_yylval.error_msg="Unmatched *)";
-					return ERROR;
-				}
+{UNMATCHED} {cool_yylval.error_msg="Unmatched *)"; return ERROR;}
 
-
- /*TODO*/
 <COMMENT>{
 	<<EOF>>	{
 
@@ -107,20 +123,15 @@ ERROR		.
 	.	{}
 }
 
- /*Singel line comments are neglected by below rule*/
+ /*
+ *  Single line comments are start with -- 
+ *  Singel line comments are neglected by below rule
+ */
 {SINGLELINECOMMENTS}	{}
 
 
 
- /*
- 	below three rules are for multi-charachter operators
-		1. DARROW : =>
-		2. ASSIGN : <-
-		3. less than : <= 
- */
-{DARROW}	{ return (DARROW); }
-{ASSIGN}	{ return (ASSIGN);}
-{LE}		{ return (LE);}
+
 
 
  /*
@@ -130,23 +141,24 @@ ERROR		.
 	without considering the case.
 	for each keyword corresponding token is returned.
  */
-(?i:class)	{ return (CLASS);}
-(?i:else)	{ return (ELSE);}
-(?i:if)		{ return (IF);}
-(?i:fi)		{ return (FI);}
-(?i:in)		{ return (IN);}
-(?i:inherits)	{ return (INHERITS);}
-(?i:let)	{ return (LET);}
-(?i:loop)	{ return (LOOP);}
-(?i:pool)	{ return (POOL);}
-(?i:then)	{ return (THEN);}
-(?i:isvoid)	{ return (ISVOID);}
-(?i:while)	{ return (WHILE);}
-(?i:case)	{ return (CASE);}
-(?i:esac)	{ return (ESAC);}
-(?i:new)	{ return (NEW);}
-(?i:of)		{ return (OF);}
-(?i:not)	{ return (NOT);}
+{CLASS} 	{return (CLASS);}
+{ELSE}  	{return (ELSE);}
+{FI}    	{return(FI);}
+{IF}    	{return(IF);}
+{IN}    	{return (IN); }
+{INHERITS}  	{return(INHERITS);}
+{LET}   	{return(LET);}
+{LOOP}  	{return(LOOP);}
+{POOL}  	{return(POOL);}
+{THEN}  	{return(THEN);}
+{WHILE} 	{return(WHILE);}
+{CASE}  	{return(CASE);}
+{ESAC}  	{return(ESAC);}
+{OF}        	{return(OF);}
+{NEW}   	{return(NEW);}
+{ISVOID}    	{return(ISVOID);}
+{NOT}   	{return(NOT);} 
+
 
  /*
 	Below two rules are for keywords, true and false.
@@ -155,18 +167,13 @@ ERROR		.
 	the corresponding semantic value is stored in the symbol table
 	and the appropriate token (BOOL_CONST) is returned in both cases. 
  */
-t(?i:rue)	{ 
-			cool_yylval.boolean = true; /*save the semantic value*/
-			return (BOOL_CONST);
-		}
+{TRUE}  	{cool_yylval.boolean = true ; return( BOOL_CONST);}
+{FALSE}     	{cool_yylval.boolean = false ;return( BOOL_CONST);}
 
-f(?i:alse)	{ 
-			cool_yylval.boolean = false; /*save the semantic value*/
-			return (BOOL_CONST);
-		}
 
  /*if newline found increment line number*/
 {NEWLINE}	{curr_lineno++;}
+
  /*this rule will ignore the white spaces*/
 {WHITESPACE}	{}
 
@@ -356,6 +363,17 @@ f(?i:alse)	{
 	the symbol is returened.
  */
 {SYMBOLS}	{ return (yytext[0]);}
+
+ /*
+ 	below three rules are for multi-charachter operators
+		1. DARROW : =>
+		2. ASSIGN : <-
+		3. less than : <= 
+ */
+{DARROW}	{ return (DARROW); }
+{ASSIGN}	{ return (ASSIGN);}
+{LE}		{ return (LE);}
+
 
  /*
 	Anything that does not match above rules is an error.
