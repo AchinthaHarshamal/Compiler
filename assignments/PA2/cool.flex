@@ -99,7 +99,7 @@ ERROR		.
 
  /*
   * comments
-  * Multiline comments any text surrounded with (*...*),
+  * Multiline comments: any text surrounded with (*...*),
   * there might be nested comments.
   */
 
