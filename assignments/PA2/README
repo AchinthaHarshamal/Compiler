@@ -137,11 +137,12 @@ ex:
 
 **Implementing White spaces**
 
-Whitespaces characters are `\t \r\f\v`. these characters are just ignored. Excepting whitespace in comments and strings.
+Whitespaces characters are `\t \r\f\v\n`. these characters are just ignored. Excepting whitespace in comments and strings.
+Meanwhile, `\n` is used to count the line number.
 
 
 
-I**Implementing Strings**
+**Implementing Strings**
 	
 To lexing a string constant, three states are used.	
 
