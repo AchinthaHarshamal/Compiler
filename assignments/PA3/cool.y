@@ -133,6 +133,9 @@
     %type <program> program
     %type <classes> class_list
     %type <class_> class
+	
+	%type <formal> formal
+	%type <formals> formal_list 
     
     /* You will want to change the following line. */
     %type <features> dummy_feature_list
@@ -167,8 +170,14 @@
     /* Feature list may be empty, but no empty features in list. */
     dummy_feature_list:		/* empty */
     {  $$ = nil_Features(); }
+
+	
     
-    
+	formal_list : formal {}
+	| formal ',' formal_list {}
+
+    formal : OBJECTID ':' TYPEID {}
+	
     /* end of grammar */
     %%
     
