@@ -141,6 +141,7 @@
 	%type <formals> formal_list
 
 	%type <expression> expr
+	%type <expressions> at_least_one_expr comma_sep_expr
     
     /* Precedence declarations go here. */
 	
@@ -217,14 +218,71 @@
 	OBJECTID ':' TYPEID 
 	{ $$ = formal($1,$3);}
 	;
-
-	expr:
-	/*empty for now*/
-	{
-		$$ = no_expr();
-	}
-	;
 	
+	expr:
+	OBJECTID ASSIGN expr
+	{ $$ = assign($1 ,$3);}
+	| expr '.' OBJECTID '(' comma_sep_expr ')'
+	{ $$ = dispatch($1,$3,$5);}
+	| expr '@' TYPEID '.' OBJECTID '(' comma_sep_expr ')'
+	{ $$ = static_dispatch($1,$3,$5,$7);}
+	| OBJECTID '(' comma_sep_expr ')'
+	{ $$ = dispatch(object(idtable.add_string("self")),$2,$3);}
+	| IF expr THEN expr ELSE expr FI
+	{ $$ = cond($2 , $4 ,$6 );}
+	| WHILE expr LOOP expr POOL
+	{ $$ = loop($2 ,$4);}
+	| '{' at_least_one_expr '}'
+	{ $$ = block($2);}
+	| NEW TYPEID
+	{ $$ = new_($2);}
+	| ISVOID expr
+	{ $$ = isvoid($2);}
+	| expr '+' expr
+	{ $$ = plus($1,$3);}
+	| expr '-' expr
+	{ $$ = sub($1,$3);}
+	| expr '*' expr
+	{ $$ = mul($1,$3);}
+	| expr '/' expr
+	{ $$ = divide($1,$3);}
+	| '~' expr
+	{ $$ = neg($2)}
+	| expr '<' expr
+	{ $$ = lt($1 , $3); }
+	| expr '<' '=' expr
+	{ $$ = leq($1 ,$3);}
+	| expr '=' expr
+	{ $$ = eq($1 ,$3);}
+	| NOT expr
+	{ $$ = comp($2);}
+	| '(' expr ')'
+	{ $$ = $2 ; }
+	| OBJECTID
+	{ $$ = object($1);}
+	| INT_CONST
+	{ $$ = int_const($1); }
+	| STR_CONST
+	{ $$ = string_const($1); }
+	| BOOL_CONST
+	{ $$ = bool_const($1); }
+	;
+
+	at_least_one_expr:
+	expr ';'
+	{ $$ = single_Expressions($1);}
+	| at_least_one_expr expr ';'
+	{ $$ = append_Expressions($1,single_Expressions($2));}
+	;
+
+	comma_sep_expr:
+	/*empty*/
+	{ $$ = nil_Expressions();}
+	| expr
+	{ $$ = single_Expressions($1);}
+	| comma_sep_expr ',' expr
+	{ $$ append_Expressions($1,single_Expressions($3));}
+	;
     /* end of grammar */
     %%
     
