@@ -141,8 +141,13 @@
 	%type <formals> formal_list
 
 	%type <expression> expr
-	%type <expressions> at_least_one_expr comma_sep_expr
-    
+	%type <expression> let_expr
+
+	%type <expressions> at_least_one_expr 
+	%type <expressions> comma_sep_expr
+
+	%type <case_> case_
+	%type <cases> cases_list    
     /* Precedence declarations go here. */
 	
 	/*assignment is right associative*/    
@@ -220,24 +225,38 @@
 	;
 	
 	expr:
+	/*assignment*/
 	OBJECTID ASSIGN expr
 	{ $$ = assign($1 ,$3);}
+	/*3 types of dispatchers*/
 	| expr '.' OBJECTID '(' comma_sep_expr ')'
 	{ $$ = dispatch($1,$3,$5);}
 	| expr '@' TYPEID '.' OBJECTID '(' comma_sep_expr ')'
 	{ $$ = static_dispatch($1,$3,$5,$7);}
 	| OBJECTID '(' comma_sep_expr ')'
 	{ $$ = dispatch(object(idtable.add_string("self")),$2,$3);}
+	/*if statements*/
 	| IF expr THEN expr ELSE expr FI
 	{ $$ = cond($2 , $4 ,$6 );}
+	/*while loop*/
 	| WHILE expr LOOP expr POOL
 	{ $$ = loop($2 ,$4);}
+	/*block*/
 	| '{' at_least_one_expr '}'
 	{ $$ = block($2);}
+	/*let*/
+	| LET let_expr
+	{ $$ = $2;}
+	/*case*/
+	| CASE expr OF cases_list ESAC
+	{ $$ = typcase($2 ,$4);}
+	/*new*/
 	| NEW TYPEID
 	{ $$ = new_($2);}
+	/*is void*/
 	| ISVOID expr
 	{ $$ = isvoid($2);}
+	/*arithmatic operations*/
 	| expr '+' expr
 	{ $$ = plus($1,$3);}
 	| expr '-' expr
@@ -248,12 +267,14 @@
 	{ $$ = divide($1,$3);}
 	| '~' expr
 	{ $$ = neg($2)}
+	/*conditional operations*/
 	| expr '<' expr
 	{ $$ = lt($1 , $3); }
 	| expr '<' '=' expr
 	{ $$ = leq($1 ,$3);}
 	| expr '=' expr
 	{ $$ = eq($1 ,$3);}
+	/*other expr's*/
 	| NOT expr
 	{ $$ = comp($2);}
 	| '(' expr ')'
@@ -283,6 +304,32 @@
 	| comma_sep_expr ',' expr
 	{ $$ append_Expressions($1,single_Expressions($3));}
 	;
+	
+	/*let*/
+	let_expr:
+	LOBJECTID ':' TYPEID IN expr
+	{ $$ = let($1 , $3 , no_expr(), $5)}
+	OBJECTID ':' TYPEID ASSIGN expr IN expr
+	{ $$ = let($1 , $3 ,$5,$7)}
+	LOBJECTID ':' TYPEID IN expr ',' let_expr
+	{ $$ = let($1 , $3 , no_expr(), $5)}
+	OBJECTID ':' TYPEID ASSIGN expr ',' let_expr
+	{ $$ = let($1 , $3 ,$5,$7)}
+	;
+
+	/*case*/
+	case_:
+	OBJECTID ':' TYPEID DARROW expr ';'
+	{ $$ = branch($1,$3,$5);}
+	;
+
+	cases_list:
+	case_
+	{$$ = single_Cases($1)}
+	| cases_list case_
+	{$$ = append_Cases( $1,single_Cases($2));}
+	;
+
     /* end of grammar */
     %%
     
