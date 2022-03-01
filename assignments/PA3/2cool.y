@@ -134,17 +134,31 @@
     %type <classes> class_list
     %type <class_> class
 
-	%type <fromals> formal_list
-	%type <formal> formal 
-	%type <expression> expr
+	%type <feature> feature
+	%type <features> feature_list
+	
+	%type <formal> formal
+	%type <formals> formal_list
 
- 
-    
-    /* You will want to change the following line. */
-    %type <features> dummy_feature_list
-    
+	%type <expression> expr
+    %type <expression> let_expr
+
+	%type <case_> case
+	%type <cases> cases_list
     /* Precedence declarations go here. */
-    
+	
+	/*assignment is right associative*/    
+	%right ASSIGN
+	%left NOT
+	/*comparison operators are not associate*/
+	%nonassoc LE '<' '=' 
+	/*all the binary operators (including NOT) are left associative*/
+	%left '+' '-'
+	%left '*' '/'
+	%left ISVOID
+	%left '~'
+	%left '@'
+	%left '.'
     
     %%
     /* 
@@ -155,39 +169,130 @@
     
     class_list
     : class			/* single class */
-    { $$ = single_Classes($1);
-    parse_results = $$; }
+    {
+		$$ = single_Classes($1);
+    	parse_results = $$;
+	}
     | class_list class	/* several classes */
-    { $$ = append_Classes($1,single_Classes($2)); 
-    parse_results = $$; }
+    {
+		$$ = append_Classes($1,single_Classes($2)); 
+    	parse_results = $$;
+	}
     ;
     
     /* If no parent is specified, the class inherits from the Object class. */
-    class	: CLASS TYPEID '{' dummy_feature_list '}' ';'
+    class	: CLASS TYPEID '{' feature_list '}' ';'
     { $$ = class_($2,idtable.add_string("Object"),$4,
     stringtable.add_string(curr_filename)); }
-    | CLASS TYPEID INHERITS TYPEID '{' dummy_feature_list '}' ';'
+    | CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
     { $$ = class_($2,$4,$6,stringtable.add_string(curr_filename)); }
     ;
     
-
-
     /* Feature list may be empty, but no empty features in list. */
-    dummy_feature_list:		ASSIGN ';'/* empty */
-    {  $$ = nil_Features(); printf("hello \n"); }
-    
-	features : OBJECTID '(' formal_list ')' ':' TYPEID '{' expr '}'	{} //TODO
-	| OBJECTID ':' TYPEID	/*empty*/ {} //TODO
-	| OBJECTID ':' TYPEID	'<' '-' expr {} //TODO
+    feature_list:
+	/* empty */
+    { $$ = nil_Features(); }
+	| feature ';'
+	{ $$ = single_Features($1); }
+	| feature_list feature ';'
+	{ $$ = append_Features($1,single_Features($2));}
+	;
 	
-	formal_list : formal {} // TODO
-	| formal_list ',' formal {}	// TODO
-
-	formal	: OBJECTID ':' TYPEID { } // TODO
+	feature:
+	OBJECTID '(' formal_list ')' ':' TYPEID '{' expr '}'
+	{ $$ = method($1,$3,$6,$8); }
+	| OBJECTID ':' TYPEID
+	{ $$ = attr($1,$3,no_expr()); }
+	| OBJECTID ':' TYPEID ASSIGN expr
+	{ $$ = attr($1,$3,$5); }
+	;
     
-	expr : {}
+	formal_list:
+	/*empty*/
+	{ $$ = nil_Formals(); }
+	| formal 
+	{ $$ = single_Formals($1);}
+	| formal_list ',' formal
+	{ $$ = append_Formals($1, single_Formals($3));} 
+	;
 
+    formal: 
+	OBJECTID ':' TYPEID 
+	{ $$ = formal($1,$3);}
+	;
 
+	let_expr:
+	LOBJECTID ':' TYPEID IN expr
+	{ $$ = let($1 , $3 , no_expr(), $5)}
+	OBJECTID ':' TYPEID ASSIGN expr IN expr
+	{ $$ = let($1 , $3 ,$5,$7)}
+	LOBJECTID ':' TYPEID IN expr ',' let_expr
+	{ $$ = let($1 , $3 , no_expr(), $5)}
+	OBJECTID ':' TYPEID ASSIGN expr ',' let_expr
+	{ $$ = let($1 , $3 ,$5,$7)}
+	;
+
+	// Cases 
+	case:
+	ID ':' TYPEID DARROW expr ';'
+	{ $$ = branch($1 , $3 , $5);}
+	;
+
+	cases_list:
+	case
+	{$$ = single_Cases($1)}
+	| ID: cases_list case
+	{$$ = append_Cases( $1,single_Cases($2));}
+	;
+
+	expr:
+	OBJECTID ASSIGN expr
+	{ $$ = assign($1 ,$3);}
+	// TODO
+	// TODO
+	| IF expr THEN expr ELSE expr FI
+	{ $$ = cond($2 , $4 ,$6 );}
+	| WHILE expr LOOP expr POOL
+	{ $$ = loop($2 ,$4);}
+	// TODO
+	| LET let_expr
+	{ $$ = $2;}
+	| CASE expr OF cases_list ESAC
+	{ $$ = typcase($2 ,$4);}	
+	| NEW TYPEID
+	{ $$ = new_($2);}
+	| ISVOID expr
+	{ $$ = isvoid($2);}
+	| expr '+' expr
+	{ $$ = plus($1,$3);}
+	| expr '-' expr
+	{ $$ = sub($1,$3);}
+	| expr '*' expr
+	{ $$ = mul($1,$3);}
+	| expr '/' expr
+	{ $$ = divide($1,$3);}
+	| '~' expr
+	{ $$ = neg($2)}
+	| expr '<' expr
+	{ $$ = lt($1 , $3); }
+	| expr '<' '=' expr
+	{ $$ = leq($1 ,$3);}
+	| expr '=' expr
+	{ $$ = eq($1 ,$3);}
+	| NOT expr
+	{ $$ = comp($2);}
+	| '(' expr ')'
+	{ $$ = $2 ; }
+	| OBJECTID
+	{ $$ = object($1);}
+	| INT_CONST
+	{ $$ = int_const($1); }
+	| STR_CONST
+	{ $$ = string_const($1); }
+	| BOOL_CONST
+	{ $$ = bool_const($1); }
+	;
+	
     /* end of grammar */
     %%
     
