@@ -29,7 +29,7 @@ Class E inherits A {
 ;
 
 (* test cases for errors in features in classes *)
-(* error : assignment operator missing in feature 2
+(* error : assignment operator clearmissing in feature 2
 		   operator missing in expression of function 3
 *)
 Class F{
@@ -80,6 +80,56 @@ Class H{
 	};
 };
 
+
+
+
+(* test cases for errors in blocks *)
+(* error : operator missing in expression 2
+	   and assignment operator missing in expression 4*)
+Class H{
+	func() : Int{
+		{
+			p <- 1;
+			q <- 1  2;
+			r <- 6 * 2;
+			s  true;
+		}
+	};
+};
+
+
+(* test cases for errors in the let expression*)
+(* an error in the expression of body*)
+Class I{
+	
+	
+	func():Int{
+		let a:Int <- 1  in a+
+	};
+
+};
+
+(*errors in variable list and the body*)
+Class J{
+	
+	h : int - 9 ;
+	
+	func():Int{
+		let a:Int < 1 , b:Int <- 2 , c:Type3 <- 3 ,c:Type3 < 4  in a+
+	};
+	h : Int  4;
+
+};
+
+(*error in a the variable list*)
+Class K{
+	
+	x : INT <-5;
+	func():Int{
+		let a:Int < 5 , b:Int , c:Type3 <- 8 in a+2
+	};
+
+};
 
 
 

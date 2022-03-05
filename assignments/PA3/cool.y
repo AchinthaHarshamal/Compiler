@@ -340,9 +340,14 @@
 		{ $$ = let($1,$3,$5,$7);}
 
 	/*error handling*/
-	| error ','
+	| error ',' let_expr
 		{ yyclearin; $$ = NULL;}
-	
+	| OBJECTID ':' TYPEID IN error	
+		{ yyclearin; $$ = NULL;}
+	| OBJECTID ':' TYPEID ASSIGN expr IN error
+		{ yyclearin; $$ = NULL;}
+	| error IN error
+		{ yyclearin; $$ = NULL;}
 	;
 
 	/*case*/
