@@ -226,8 +226,19 @@ Write-up for PA3
 					this list cannot be empty.
 					it must contain at least one expression.
 					in this list each expression is seperated by a';'
-
-
+			
+			=>Type rule for case
+				production of a case as follows.
+					case expr of branches esac				
+				A case contains one or more branches.
+				The non terminal case_list is used to discribe these set of branches.
+				The non-terminal case_ describes a one branch
+		
+				rule for case_list
+				------------------
+					cas_list must contain at least one case
+				
+				
  
 
 

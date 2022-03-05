@@ -331,7 +331,7 @@
 		{ $$ = let($1,$3,no_expr(),$5);}
 	| OBJECTID ':' TYPEID ASSIGN expr IN expr
 		{ $$ = let($1,$3,$5,$7);}
-	| OBJECTID ':' TYPEID IN expr ',' let_expr
+	| OBJECTID ':' TYPEID ',' let_expr
 		{ $$ = let($1,$3,no_expr(), $5);}
 	| OBJECTID ':' TYPEID ASSIGN expr ',' let_expr
 		{ $$ = let($1,$3,$5,$7);}
@@ -339,7 +339,7 @@
 	/*error handling*/
 	| error IN expr
 		{ yyclearin; $$ = NULL;}
-	| let_expr ',' error
+	| error ',' let_expr
 		{ yyclearin; $$ = NULL;}
 	;
 
