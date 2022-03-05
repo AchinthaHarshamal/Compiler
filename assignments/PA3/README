@@ -130,3 +130,115 @@ Instructions
 
 Write-up for PA3
 ----------------
+
+
+	Grammer Rules
+	-------------
+	* The type rules for cool programming language are defined in this section.
+	* Each rule describes how to combine set of terminals and non-terminals together
+	to produce a given non-terminal.
+
+	<--descriptions of each rule--> 
+
+	rule for program
+	----------------
+		This was already implemented in the skeleton.
+		Program may consist of one or more classes.
+		non-termnal class_list is used to describe one or more classes.
+
+	rule for class_list
+	-------------------
+		This was already implemented in the skeleton.
+		class list must contain at least one class or more.
+
+	rule for class
+	--------------
+		This rule describes the productions of a class.
+		There are two types of classes.
+			01) without a specific parent
+					priduction => class TYPE { feature_list };
+					in this case, class 'Object' is the parent.
+					it is added to the idtable.
+			02) with a specific parent
+					priduction => class TYPE inherits TYPE { feature_list };
+
+		class contain zero or more features.
+		non-terminal feature_list is used to describe these set of features.
+
+		There can be errors in set of features or class definition or in both.
+		If a error is found in either case, the input strig is skiped to end of 
+		the class definition.
+		Then the parsing is started again from that point. 
+
+	rule for feature_list
+	---------------------
+		Feature list may be empty or contains one or more features.
+		Features are seperated by a ','.
+		If a error found in one feature, it is skiped and parsing is started from next feature.
+
+	rule for a feature
+	------------------
+		There are three types of features.
+			01) methods
+					profuction for a method as follows,
+						ID( [ formal_list ] ) : TYPE { expr }
+					this requires list of formals and an expression.
+			02) attributes withoud initilization
+			03) initialized attributes
+					profuction for initialized attributes as follows,
+						ID : TYPE  <- expr 
+					this requires an exprrssion
+
+	rule for formal_list
+	--------------------
+		A formal list can be empty.
+		Or it contains one or more comma seperated formals.
+
+	rule for a formal
+	-----------------
+		Production for a formal as follows
+			ID : TYPE
+	
+	rule for expression
+	-------------------
+		There are several types of expressions.
+		Productions for each type of expressions are defined for type rules
+		given in the cool-manual.
+		non-terminal expr is used to discribe expressions.
+		There are some special cases to mention.
+			
+			=>Type rules for dispatchers
+				dispatchers conntains set of ',' seperated expressions.
+				non-terminal comma_sep_expr is used to produce that.
+
+				rule for comma_sep_expr
+				-----------------------
+					this set can be empty.
+					Or else, it contains one or more expressions seperated by ','
+			
+			=>Type rule for block
+				A block contains set of expressions seperated by ';'.
+				It must contain at least one expression.
+				The non-terminal at_least_one_expr used to produce that set.
+
+				rule for at_least_one_expr
+				--------------------------
+					this list cannot be empty.
+					it must contain at least one expression.
+					in this list each expression is seperated by a';'
+			
+			=>Type rule for case
+				production of a case as follows.
+					case expr of branches esac				
+				A case contains one or more branches.
+				The non terminal case_list is used to discribe these set of branches.
+				The non-terminal case_ describes a one branch
+		
+				rule for case_list
+				------------------
+					cas_list must contain at least one case
+				
+				
+ 
+
+

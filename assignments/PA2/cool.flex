@@ -1,5 +1,10 @@
 /*
- *  The scanner definition for COOL.
+* Group Number : 05 
+* E/17/176 Kumara W.M.E.S.K.
+* E/17/090 Francis F.B.A.H 
+*/
+/*
+ * The scanner definition for COOL.
  */
 
 /*
@@ -321,7 +326,7 @@ ERROR		.
 	constant is reached)
 	In the second rule, if a escaped newline is found the current line number is incremented.
 	In the third rule, the every char is discarded. 
- */
+*/
 <SKIPSTR>([\"]|[^\\]\n) {curr_lineno++; BEGIN(INITIAL); }
 <SKIPSTR>\\\n           {curr_lineno++;}
 <SKIPSTR>.              {}
