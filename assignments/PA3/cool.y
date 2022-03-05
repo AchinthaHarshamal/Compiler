@@ -156,6 +156,7 @@
  	*/
 	
 	/*assignment is right associative*/    
+	%right LET_STMT	
 	%right ASSIGN
 	%left NOT
 	/*comparison operators are not associate*/
@@ -327,20 +328,19 @@
 	
 	/*let*/
 	let_expr:
-	OBJECTID ':' TYPEID IN expr
+	OBJECTID ':' TYPEID IN expr						%prec LET_STMT
 		{ $$ = let($1,$3,no_expr(),$5);}
-	| OBJECTID ':' TYPEID ASSIGN expr IN expr
+	| OBJECTID ':' TYPEID ASSIGN expr IN expr 		%prec LET_STMT
 		{ $$ = let($1,$3,$5,$7);}
-	| OBJECTID ':' TYPEID ',' let_expr
+	| OBJECTID ':' TYPEID ',' let_expr 				%prec LET_STMT
 		{ $$ = let($1,$3,no_expr(), $5);}
-	| OBJECTID ':' TYPEID ASSIGN expr ',' let_expr
+	| OBJECTID ':' TYPEID ASSIGN expr ',' let_expr 	%prec LET_STMT
 		{ $$ = let($1,$3,$5,$7);}
 
 	/*error handling*/
-	| error IN expr
+	| error ','
 		{ yyclearin; $$ = NULL;}
-	| error ',' let_expr
-		{ yyclearin; $$ = NULL;}
+	
 	;
 
 	/*case*/
