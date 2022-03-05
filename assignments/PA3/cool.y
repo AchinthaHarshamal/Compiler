@@ -198,11 +198,7 @@
     	{ $$ = class_($2,$4,$6,stringtable.add_string(curr_filename)); }
 
 	/*error handling*/
-	| CLASS TYPEID '{' error '}' ';'
-		{ yyclearin; $$ = NULL;}
-	| CLASS error '{' feature_list '}' ';'
-		{ yyclearin; $$ = NULL;}
-	| CLASS error '{' error '}' ';'
+	| CLASS error ';'
 		{ yyclearin; $$ = NULL;}
     ;
     
@@ -225,6 +221,12 @@
 		{ $$ = attr($1,$3,no_expr()); }
 	| OBJECTID ':' TYPEID ASSIGN expr ';'
 		{ $$ = attr($1,$3,$5); }
+	| OBJECTID '(' error ')' ':' TYPEID '{' expr '}' ';'
+		{ yyclearin; $$ = NULL;}
+	| OBJECTID '(' formal_list ')' ':' TYPEID '{' error '}' ';'
+		{ yyclearin; $$ = NULL;}
+	| OBJECTID '(' error ')' ':' TYPEID '{' error '}' ';'
+		{ yyclearin; $$ = NULL;}
 	;
     
 	formal_list:
@@ -233,7 +235,7 @@
 	| formal 
 		{ $$ = single_Formals($1);}
 	| formal_list ',' formal
-		{ $$ = append_Formals($1, single_Formals($3));} 
+		{ $$ = append_Formals($1, single_Formals($3));}
 	;
 
     formal: 
