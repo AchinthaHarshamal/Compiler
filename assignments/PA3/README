@@ -132,7 +132,47 @@ Write-up for PA3
 ----------------
 
 
+	/*assignment is right associative*/    
+	%right LET_STMT	
+	%right ASSIGN
+	%left NOT
+	/*comparison operators are not associate*/
+	%nonassoc LE '<' '=' 
+	/*all the binary operators (including NOT) are left associative*/
+	%left '+' '-'
+	%left '*' '/'
+	%left ISVOID
+	%left '~'
+	%left '@'
+	%left '.'
+	
+	Precedence declarations
+	-----------------------
+	-----------------------
+	There are maily three types of Precedence,
+		1) Left associative
+			Priority level of the precedence as follows,
+					.
+					@
+					~
+					ISVOID
+					* /
+					+ -
+					< =
+					NOT
+				
+		2) Right associative
+			There are only two right associative precedence (LET & ASSIGN)
+		3) Non associative
+			Non associatve precedence are the precedece those have no priority.
+			They are LE , < , =
+		
+		when the line number is higher, higher the precedence in the bison
+		
+
+
 	Grammer Rules
+	-------------
 	-------------
 	* The type rules for cool programming language are defined in this section.
 	* Each rule describes how to combine set of terminals and non-terminals together
@@ -183,7 +223,9 @@ Write-up for PA3
 					profuction for a method as follows,
 						ID( [ formal_list ] ) : TYPE { expr }
 					this requires list of formals and an expression.
+			
 			02) attributes withoud initilization
+
 			03) initialized attributes
 					profuction for initialized attributes as follows,
 						ID : TYPE  <- expr 
@@ -237,8 +279,23 @@ Write-up for PA3
 				rule for case_list
 				------------------
 					cas_list must contain at least one case
-				
-				
+			
+			=>Type rule for the LET
+				let ID : TYPE [ <- expr ] [[, ID : TYPE [ <- expr ]]]* in expr
+
+				grammer for the let expression as above, to implement this, a separate variable list should 
+				be implemented.
+
+
+
+		Test Cases & Correctness
+		------------------------
+		------------------------
+
+		All pssible test cases are in the gool.cl and the bad.cl
+
+		All possible testcases are giving the same results as the inbuild parser results.
+		Parser is compiled without any confilcts. Therefore we can assume our parse is correct and the robust.
  
 
 
