@@ -175,8 +175,8 @@
     program	: class_list	{ @$ = @1; ast_root = program($1); }
     ;
     
-    class_list
-    : class			/* single class */
+    class_list: 
+	class			/* single class */
     {
 		$$ = single_Classes($1);
     	parse_results = $$;
@@ -189,7 +189,8 @@
     ;
     
     /* If no parent is specified, the class inherits from the Object class. */
-    class	: CLASS TYPEID '{' feature_list '}' ';'
+    class: 
+	CLASS TYPEID '{' feature_list '}' ';'
     	{ $$ = class_($2,idtable.add_string("Object"),$4,
     stringtable.add_string(curr_filename)); }
     | CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
@@ -208,9 +209,7 @@
     feature_list:
 	/* empty */
     	{ $$ = nil_Features(); }
-	| feature ';'
-		{ $$ = single_Features($1); }
-	| feature_list feature ';'
+	| feature_list feature
 		{ $$ = append_Features($1,single_Features($2));}
 
 	/*error handling*/
@@ -219,11 +218,11 @@
 	;
 	
 	feature:
-	OBJECTID '(' formal_list ')' ':' TYPEID '{' expr '}'
+	OBJECTID '(' formal_list ')' ':' TYPEID '{' expr '}' ';'
 		{ $$ = method($1,$3,$6,$8); }
-	| OBJECTID ':' TYPEID
+	| OBJECTID ':' TYPEID ';'
 		{ $$ = attr($1,$3,no_expr()); }
-	| OBJECTID ':' TYPEID ASSIGN expr
+	| OBJECTID ':' TYPEID ASSIGN expr ';'
 		{ $$ = attr($1,$3,$5); }
 	;
     
