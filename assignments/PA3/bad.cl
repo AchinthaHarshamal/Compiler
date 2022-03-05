@@ -66,6 +66,20 @@ Class G{
 	z : int <- 2;
 };
 
+(* test cases for error in blocks *)
+(* error : operator missing in expression 2
+	   and assignment operator missing in expression 4*)
+Class H{
+	func() : Int{
+		{
+			p <- 1;
+			q <- 1  2;
+			r <- 6 * 2;
+			s  true;
+		}
+	};
+};
+
 
 
 
