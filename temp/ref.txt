@@ -1,0 +1,31 @@
+cool manual : type rules and scope rules etc.
+Tour of cool : functions of tree package
+cool-tree.h : program_class definition
+
+what to do?
+	1) traverse AST
+	2) gather info
+	3) use those info (for type check, scoping etc.)
+
+	Inheritance
+		Implement inheritance graph and check for cycles
+		Can stop compilation if error found
+	Name ans Scope
+		Use symbole table to manage scopes
+		Recover from erros
+		Classes, methods, attributes can be used before decleration
+	Type checking
+		See cool manual for type rules
+		Recover from errors (Assign type Object)
+	
+	Must do
+		set the type field of each expression node to Symbol (output off add_string method of id table)
+		type of no_expr => No-type
+
+	Error reporting
+		Didn't understood 
+
+	Files
+		semant.h : declerations and definitons for SA (write)
+		cool-tree.h : add field methods required for classes
+		semant.cc : main file
