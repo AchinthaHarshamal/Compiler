@@ -261,7 +261,8 @@ void ClassTable::semant_attr_expr(c_node current_class,attr_class* attr){
     Symbol attr_type = attr->get_type_decl();
     Expression init = attr->get_init();
     semant_expr(current_class, init);
-
+	
+	/*this check_parent fumction checks the type compatibility of attribute type and type of the expression*/
     if ( check_parent(attr_type , init->type) == false ){
         ostream& os = semant_error(current_class);
         os << "expression type " << init->type <<" must conform to attribution type " << attr_type << "." << endl; 
@@ -283,6 +284,8 @@ void ClassTable::semant_method_expr(c_node current_class,method_class* method){
     semant_expr(current_class,expr);
 
     current_table.exitscope();
+
+	/*this check_parent fumction checks the type compatibility of return type and type of the expression*/
     if ( check_parent(ret_type , expr->type) == false ){
         ostream& os = semant_error(current_class);
         os << "expression type " << expr->type <<" must conform to return type " << ret_type << "." << endl; 
@@ -363,6 +366,12 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
             }
         case caseType:
             {
+				typcase_class* classptr = (typcase_class*)expr;
+				Cases cases = classptr->get_cases();				
+				Expression e0 = classptr->get_expr();
+				semant_expr(current_class,e0);
+		
+				expr->type = Int;
                 break;
             }
         case blockType:

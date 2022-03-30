@@ -4,7 +4,11 @@ class Main{
 	b : Int <- 5;
 
 	main():Int {
-	  1
+	  a <- 
+		case true of
+			x : Bool => x;
+			y : Int =>	not x;
+		esac
 	};
 };
 
