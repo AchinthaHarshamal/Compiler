@@ -2,16 +2,13 @@ class Main{
 	
 	a : Int <- 5;	
 	b : Int <- 5;
+	s : Bool;	
 
-	main():Int {
-	  a <- 
-		case true of
-			x : Bool => x;
-			y : Int =>	not x;
-		esac
+	main():Bool {
+		{
+			b <- a*a;
+			a <- b-a;
+			s <- true;
+		}
 	};
 };
-
-class A{};
-
-class B inherits A{};

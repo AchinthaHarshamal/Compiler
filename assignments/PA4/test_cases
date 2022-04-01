@@ -1,0 +1,25 @@
+class Main{
+	
+	a : Int <- 5;	
+	b : Int <- 5;
+
+	main():Int {
+	  	
+		a <- case true of
+				x : Object => a+b;
+				y : Bool =>	a-b;
+			esac
+		
+	};
+};
+
+class Main{
+	
+	a : Int <- 5;	
+	b : Int <- 5;
+
+	main():Int {
+		while 1 loop a<- a+1 pool
+	};
+};
+

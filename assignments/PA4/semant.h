@@ -44,6 +44,7 @@ public:
   bool check_parent(Symbol parent,Symbol child);
   Symbol lub(Symbol type1,Symbol type2);
   Symbol get_feature_type(Feature feature);
+  Symbol get_union(Symbol curr_type, Symbol prev_type);
 };
 
 

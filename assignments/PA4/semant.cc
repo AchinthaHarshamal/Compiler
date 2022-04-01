@@ -1,6 +1,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include "algorithm"
+#include <vector>
+#include <stack>
 #include "semant.h"
 #include "utilities.h"
 
@@ -322,6 +325,48 @@ void ClassTable::semant_formal(c_node current_class,Formal f){
     current_table.addid(formal->get_name(), formal);
 }
 
+Symbol ClassTable::get_union(Symbol curr_type, Symbol prev_type){
+
+	std::stack<Symbol> curr_stack, prev_stack;
+    
+	class__class* curr = static_cast<class__class*>(class_symtable.lookup(curr_type));
+
+    while (curr != NULL) {
+        curr_stack.push(curr->get_name());
+        curr = static_cast<class__class*>(class_symtable.lookup(curr->get_parent()));
+    }
+
+    curr = static_cast<class__class*>(class_symtable.lookup(prev_type));
+
+    while (curr != NULL) {
+        prev_stack.push(curr->get_name());
+        curr = static_cast<class__class*>(class_symtable.lookup(curr->get_parent()));
+    }
+
+    Symbol curr_head = curr_stack.top();
+    curr_stack.pop();
+
+    Symbol prev_head = prev_stack.top();
+    prev_stack.pop();
+
+    Symbol common_type = curr_head;
+
+    while (prev_head == curr_head && !curr_stack.empty() && !prev_stack.empty()) {
+         
+		curr_head = curr_stack.top();
+        curr_stack.pop();
+
+        prev_head = prev_stack.top();
+        prev_stack.pop();
+
+        if (curr_head == prev_head) {
+        	common_type = curr_head;
+        }
+    }
+    return common_type;
+	
+}
+
 void ClassTable::semant_expr(c_node current_class,Expression expr){
 
     expr->type = No_type; // for error handle
@@ -362,20 +407,76 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
             }
         case loopType:
             {
+				loop_class* loop = (loop_class*) expr ;
+				Expression pred = loop->get_pred();
+				Expression body = loop->get_body();
+			
+				semant_expr(current_class,pred);
+				Symbol pred_type = pred->type;
+				if(pred_type!=Bool){
+					ostream& os = semant_error(current_class);
+                 	os <<   "Loop condition does not have type Bool" << ".\n";
+				}
+
+				semant_expr(current_class,body);
+				expr->type = Object;				
                 break;
             }
         case caseType:
             {
-				typcase_class* classptr = (typcase_class*)expr;
-				Cases cases = classptr->get_cases();				
-				Expression e0 = classptr->get_expr();
+				typcase_class* typcase = (typcase_class*) expr ;
+				Cases cases = typcase->get_cases();
+				Table current_table = current_class->featureTable;
+				Expression e0 = typcase->get_expr();
 				semant_expr(current_class,e0);
+				
+				std::vector<Symbol> used;
 		
-				expr->type = Int;
+				Symbol type, prev_type ;
+   
+				for(int i = cases->first() ; cases->more(i) ; i = cases->next(i) ){
+					prev_type = type;
+ 
+					branch_class* c = (branch_class*)cases->nth(i);
+					Symbol type_decl = c->get_type_decl();
+					 
+					if (std::find(used.begin(), used.end(), type_decl) == used.end() ) {
+            			used.push_back(type_decl);
+        			} else {
+            			ostream& os = semant_error(current_class);
+                        os <<   "Duplicate branch " << type_decl << " in case statement." << ".\n";
+           				return;
+        			}
+					
+					current_table.enterscope();
+
+					current_table.addid(c->get_name(),c);
+
+					semant_expr(current_class,c->get_expr());
+                    
+                    type = c->get_expr()->type;
+
+					if(i>0){
+						type = get_union(type,prev_type);
+					}                    
+					current_table.exitscope();					
+				}
+				expr->type = type;
                 break;
             }
         case blockType:
             {
+				block_class* classptr = (block_class*)expr;
+				Expressions exprs = classptr->get_body();
+				
+				Symbol last_type;
+				for(int i = exprs->first();exprs->more(i);i = exprs->next(i)){
+					Expression nth = exprs->nth(i);					
+					semant_expr(current_class,nth);
+					last_type = nth->type;
+				}				
+				
+				expr->type = last_type;
                 break;
             }
         case letType:
