@@ -265,8 +265,8 @@ void ClassTable::semant_attr_expr(c_node current_class,attr_class* attr){
     Expression init = attr->get_init();
     semant_expr(current_class, init);
 	
-	/*this check_parent fumction checks the type compatibility of attribute type and type of the expression*/
-    if ( check_parent(attr_type , init->type) == false ){
+	/*this is_subclass fumction checks the type compatibility of attribute type and type of the expression*/
+    if ( is_subclass(attr_type , init->type) == false ){
         ostream& os = semant_error(current_class);
         os << "expression type " << init->type <<" must conform to attribution type " << attr_type << "." << endl; 
     }
@@ -288,8 +288,8 @@ void ClassTable::semant_method_expr(c_node current_class,method_class* method){
 
     current_table.exitscope();
 
-	/*this check_parent fumction checks the type compatibility of return type and type of the expression*/
-    if ( check_parent(ret_type , expr->type) == false ){
+	/*this is_subclass fumction checks the type compatibility of return type and type of the expression*/
+    if ( is_subclass(ret_type , expr->type) == false ){
         ostream& os = semant_error(current_class);
         os << "expression type " << expr->type <<" must conform to return type " << ret_type << "." << endl; 
     }
@@ -325,47 +325,6 @@ void ClassTable::semant_formal(c_node current_class,Formal f){
     current_table.addid(formal->get_name(), formal);
 }
 
-Symbol ClassTable::get_union(Symbol curr_type, Symbol prev_type){
-
-	std::stack<Symbol> curr_stack, prev_stack;
-    
-	class__class* curr = static_cast<class__class*>(class_symtable.lookup(curr_type));
-
-    while (curr != NULL) {
-        curr_stack.push(curr->get_name());
-        curr = static_cast<class__class*>(class_symtable.lookup(curr->get_parent()));
-    }
-
-    curr = static_cast<class__class*>(class_symtable.lookup(prev_type));
-
-    while (curr != NULL) {
-        prev_stack.push(curr->get_name());
-        curr = static_cast<class__class*>(class_symtable.lookup(curr->get_parent()));
-    }
-
-    Symbol curr_head = curr_stack.top();
-    curr_stack.pop();
-
-    Symbol prev_head = prev_stack.top();
-    prev_stack.pop();
-
-    Symbol common_type = curr_head;
-
-    while (prev_head == curr_head && !curr_stack.empty() && !prev_stack.empty()) {
-         
-		curr_head = curr_stack.top();
-        curr_stack.pop();
-
-        prev_head = prev_stack.top();
-        prev_stack.pop();
-
-        if (curr_head == prev_head) {
-        	common_type = curr_head;
-        }
-    }
-    return common_type;
-	
-}
 
 void ClassTable::semant_expr(c_node current_class,Expression expr){
 
@@ -383,7 +342,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                 }
                 else {
                     semant_expr(current_class,classptr->get_expr());
-                    if(check_parent(get_feature_type(feature),classptr->get_expr()->type)){
+                    if(is_subclass(get_feature_type(feature),classptr->get_expr()->type)){
                         expr->type = classptr->get_expr()->type;
                     }
                     else {
@@ -403,6 +362,23 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
             }
         case condType:
             {
+				cond_class * classptr = (cond_class*)expr;
+				
+				Expression e1 = classptr->get_pred();
+				Expression e2 = classptr->get_then_exp();
+				Expression e3 = classptr->get_else_exp();
+
+				semant_expr(current_class,e1);
+				if(e1->type!=Bool){
+					ostream& os = semant_error(current_class);
+                 	os <<   "Predicate of 'if' does not have type Bool" << ".\n";
+				}
+				
+				semant_expr(current_class,e2);
+  				semant_expr(current_class,e3);
+
+				expr->type = get_union(e2->type,e3->type);
+
                 break;
             }
         case loopType:
@@ -481,6 +457,44 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
             }
         case letType:
             {
+				let_class* classptr = (let_class*)expr;
+				Table current_table = current_class->featureTable;
+
+				Expression init = classptr->get_init();
+				Symbol t0 = classptr->get_type_decl();
+				Symbol identifier = classptr->get_identifier();
+				Expression body = classptr->get_body();				
+
+				semant_expr(current_class,init);				
+				Symbol t1 = init->type;
+				
+				Symbol type = Object;
+
+				if(t1!=No_type){
+					//type cheking for let with init					
+					if (!is_subclass(t0, t1)) {
+        				ostream& os = semant_error(current_class);
+                    	os << "Inferred type " << t1 << " of initialization of " << classptr->get_identifier() << " does not confirm to identifier's declared type "<<t0<<"."<< endl;
+    				}
+				}
+				
+				current_table.enterscope();
+
+				if(identifier==self){
+					ostream& os = semant_error(current_class);
+                  	os << "'self' cannot be bound in a 'let' expression."<< endl;
+				}
+				else{
+					/*TODO: check whether adding let node is correct*/
+					current_table.addid(identifier,classptr);
+				}				
+				
+				semant_expr(current_class,body);
+				type = body->type;					
+					
+				current_table.exitscope();
+				
+				expr->type = type;
                 break;
             }
         case plusType:
@@ -493,7 +507,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                 }
                 else {
                     ostream& os = semant_error(current_class);
-                    os << "non-Int arguments: " << classptr->get_e1()->type << " + " << classptr->get_e2()->type << ".";
+                    os << "non-Int arguments: " << classptr->get_e1()->type << " + " << classptr->get_e2()->type << "."<<endl;
                 }
                 break;
             }
@@ -507,7 +521,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                 }
                 else {
                     ostream& os = semant_error(current_class);
-                    os << "non-Int arguments: " << classptr->get_e1()->type << " - " << classptr->get_e2()->type << ".";
+                    os << "non-Int arguments: " << classptr->get_e1()->type << " - " << classptr->get_e2()->type << "."<<endl;
                 }
                 break;
             }
@@ -521,7 +535,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                 }
                 else {
                     ostream& os = semant_error(current_class);
-                    os << "non-Int arguments: " << classptr->get_e1()->type << " * " << classptr->get_e2()->type << ".";
+                    os << "non-Int arguments: " << classptr->get_e1()->type << " * " << classptr->get_e2()->type << "."<<endl;
                 }
                 break;
             }
@@ -655,7 +669,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                 Feature feature = (Feature)current_table.lookup(name);
                 if( feature == NULL || feature->get_type() == methodType){
                     ostream& os = semant_error(current_class);
-                    os << "object " << name <<" not defined.\n";
+                    os << "Undeclared identifier " << name << endl;
                 }
                 else{
                    expr->type = get_feature_type(feature);
@@ -674,14 +688,14 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 /*
  *  subroutines that helps implement the semantic analysis
  *
- *  check_parent(Symbol parent, Symbol child) : check if inheritance exists
+ *  is_subclass(Symbol parent, Symbol child) : check if inheritance exists
  * 
- *  lub (Symbol type1,Symbol type2) : find the least upper bound between two input types
+ *  get_union (Symbol type1,Symbol type2) : find the least upper bound between two input types
  *
  *  get_feature_type(c_node class,Feature feature):find the type of the feature
  */
 
-bool ClassTable::check_parent(Symbol parent, Symbol child) {
+bool ClassTable::is_subclass(Symbol parent, Symbol child) {
     if ( parent == child || parent == Object || child == No_type ){
         return true;
     }
@@ -699,11 +713,53 @@ bool ClassTable::check_parent(Symbol parent, Symbol child) {
     return false;
 }
 
+Symbol ClassTable::get_union(Symbol curr_type, Symbol prev_type){
+
+	std::stack<Symbol> curr_stack, prev_stack;
+    
+	class__class* curr = static_cast<class__class*>(class_symtable.lookup(curr_type));
+
+    while (curr != NULL) {
+        curr_stack.push(curr->get_name());
+        curr = static_cast<class__class*>(class_symtable.lookup(curr->get_parent()));
+    }
+
+    curr = static_cast<class__class*>(class_symtable.lookup(prev_type));
+
+    while (curr != NULL) {
+        prev_stack.push(curr->get_name());
+        curr = static_cast<class__class*>(class_symtable.lookup(curr->get_parent()));
+    }
+
+    Symbol curr_head = curr_stack.top();
+    curr_stack.pop();
+
+    Symbol prev_head = prev_stack.top();
+    prev_stack.pop();
+
+    Symbol common_type = curr_head;
+
+    while (prev_head == curr_head && !curr_stack.empty() && !prev_stack.empty()) {
+         
+		curr_head = curr_stack.top();
+        curr_stack.pop();
+
+        prev_head = prev_stack.top();
+        prev_stack.pop();
+
+        if (curr_head == prev_head) {
+        	common_type = curr_head;
+        }
+    }
+    return common_type;
+	
+}
+
 Symbol ClassTable::lub(Symbol type1,Symbol type2){
-    if(check_parent(type1,type2) || type2 == No_type){
+    if(is_subclass(type1,type2) || type2 == No_type){
         return type1;
     }
-    else if(check_parent(type2,type1) || type1 == No_type ){
+    else if(is_subclass(type2,type1) || type1 == No_type ){
         return type2;
     }
     else {

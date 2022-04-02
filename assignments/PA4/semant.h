@@ -41,7 +41,7 @@ public:
   void semant_method_expr(class__class* current_class,method_class* method);
   void semant_formal(class__class* current_class,Formal formal);
   void semant_expr(class__class* current_class,Expression expr);
-  bool check_parent(Symbol parent,Symbol child);
+  bool is_subclass(Symbol parent,Symbol child);
   Symbol lub(Symbol type1,Symbol type2);
   Symbol get_feature_type(Feature feature);
   Symbol get_union(Symbol curr_type, Symbol prev_type);
