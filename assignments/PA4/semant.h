@@ -45,6 +45,7 @@ public:
   Symbol lub(Symbol type1,Symbol type2);
   Symbol get_feature_type(Feature feature);
   Symbol get_union(Symbol curr_type, Symbol prev_type);
+  method_class* find_method(c_node current_class , Symbol method_name);
 };
 
 

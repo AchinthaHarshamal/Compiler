@@ -354,10 +354,143 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
             }
         case static_dispatchType:
             {
+                static_dispatch_class* dispatch = (static_dispatch_class*) expr;
+				Expression e0 = dispatch->get_expr();
+				Expressions ens = dispatch->get_actual();
+				Symbol method_name = dispatch->get_name();
+				Symbol t = dispatch->get_type_name();
+
+		
+				
+				semant_expr(current_class,e0);
+				Symbol t0  = e0->type;
+
+				if(!is_subclass(t, t0)){
+					ostream& os = semant_error(current_class);
+                    os <<"Expression type " << t0 << " does not conform to declared static dispatch type " << t << "." << endl;
+				}		
+
+				
+				c_node t_class = (c_node)class_symtable.probe(t);
+				method_class *method = find_method(t_class ,method_name);
+
+				if(!method){
+					 ostream& os = semant_error(current_class);
+                     os << "Dispatch to undefined method " << dispatch->get_name() << "."<<endl;
+					 expr->type = Object ;
+					 return ;
+				}
+
+				bool less_formals = false ;
+				Formals formals = method->get_formals();
+				int i ; 
+				for(i = ens->first() ; ens->more(i); i = ens->next(i)){
+					Expression en = ens->nth(i);
+					semant_expr(current_class,en);
+
+					
+					if(formals->more(i)){
+						formal_class* f = (formal_class*)formals->nth(i);
+						Symbol type_formal = f->get_type_decl();
+
+						if(!is_subclass(type_formal , en->type)){
+							ostream& os = semant_error(current_class);
+                     		os << "In call of method " << dispatch->get_name() << ", type " << en->type <<
+                   			" of parameter " << f->get_name() << " does not conform to "
+                    		"declared type " << type_formal << "." << endl;
+					 	
+						}
+					}else{
+						less_formals = true;
+					}
+
+
+				}
+				
+				if(less_formals || formals->more(i)){
+					ostream& os = semant_error(current_class);
+                    os << "Method " << dispatch->get_name() << " called with wrong number of arguments." << endl;
+				}
+
+				Symbol m_type = method->get_return_type();
+				if(m_type == SELF_TYPE){
+					expr->type = t0;
+				}
+				else{
+					expr->type = m_type ;
+		
+				}
+				
+				
+				
                 break;
             }
         case dispatchType:
             {
+                dispatch_class* dispatch = (dispatch_class*) expr;
+				Expression e0 = dispatch->get_expr();
+				Expressions ens = dispatch->get_actual();
+				Symbol method_name = dispatch->get_name();
+				
+				semant_expr(current_class,e0);
+				Symbol t0  = e0->type;
+				Symbol t0d = t0 ;
+				if(t0 == SELF_TYPE){
+					t0d = current_class->get_name();		
+		
+				}
+				c_node e0d_class = (c_node)class_symtable.probe(t0d);
+				method_class *method = find_method(e0d_class , dispatch->get_name());
+
+				if(!method){
+					 ostream& os = semant_error(current_class);
+                     os << "Dispatch to undefined method " << dispatch->get_name() << "."<<endl;
+					 expr->type = Object ;
+					 return ;
+				}
+
+				bool less_formals = false ;
+				Formals formals = method->get_formals();
+				int i ; 
+				for(i = ens->first() ; ens->more(i); i = ens->next(i)){
+					Expression en = ens->nth(i);
+					semant_expr(current_class,en);
+
+					
+					if(formals->more(i)){
+						formal_class* f = (formal_class*)formals->nth(i);
+						Symbol type_formal = f->get_type_decl();
+
+						if(!is_subclass(type_formal , en->type)){
+							ostream& os = semant_error(current_class);
+                     		os << "In call of method " << dispatch->get_name() << ", type " << en->type <<
+                   			" of parameter " << f->get_name() << " does not conform to "
+                    		"declared type " << type_formal << "." << endl;
+					 	
+						}
+					}else{
+						less_formals = true;
+					}
+
+
+				}
+				
+				if(less_formals || formals->more(i)){
+					ostream& os = semant_error(current_class);
+                    os << "Method " << dispatch->get_name() << " called with wrong number of arguments." << endl;
+				}
+
+				Symbol m_type = method->get_return_type();
+				if(m_type == SELF_TYPE){
+					expr->type = t0;
+				}
+				else{
+					expr->type = m_type ;
+		
+				}
+				
+				
+				
                 break;
             }
         case condType:
@@ -781,7 +914,19 @@ Symbol ClassTable::get_feature_type(Feature feature){
     }  
 }
 
-
+method_class* ClassTable::find_method(c_node current_class , Symbol method_name){
+	if(current_class->get_name() == Object){
+		return NULL;
+	}
+	Table fTable = current_class->featureTable;
+	Feature_class* f = (Feature_class*)fTable.probe(method_name) ;
+	if( f !=NULL && f-> get_type() == methodType){
+		return (method_class*)f;
+	}else{
+		c_node parent = (c_node)class_symtable.probe(current_class->get_parent());
+		return find_method(parent,method_name);
+	}	
+}
 /*
  * subroutines end
  */
