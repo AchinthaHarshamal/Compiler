@@ -13,6 +13,7 @@
 
 class ClassTable;
 typedef ClassTable *ClassTableP;
+typedef SymbolTable<Symbol, tree_node>& Table;
 
 // This is a structure that may be used to contain the semantic
 // information such as the inheritance graph.  You may use it or not as
@@ -31,6 +32,19 @@ public:
   ostream& semant_error();
   ostream& semant_error(Class_ c);
   ostream& semant_error(Symbol filename, tree_node *t);
+  SymbolTable<Symbol, tree_node> class_symtable; // use tree_node as value cuz all nodes derives from it.
+  void semant_class(class__class* current_class);
+  void semant_class_attr(class__class* current_class);
+  void semant_attr_expr(class__class* current_class,attr_class* attr);
+  void semant_attr(class__class* current_class,attr_class* attr);
+  void semant_method(class__class* current_class,method_class* method);
+  void semant_method_expr(class__class* current_class,method_class* method);
+  void semant_formal(class__class* current_class,Formal formal);
+  void semant_expr(class__class* current_class,Expression expr);
+  bool is_subclass(Symbol parent,Symbol child);
+  Symbol lub(Symbol type1,Symbol type2);
+  Symbol get_feature_type(Feature feature);
+  Symbol get_union(Symbol curr_type, Symbol prev_type);
 };
 
 

@@ -1,14 +1,16 @@
-
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include "algorithm"
+#include <vector>
+#include <stack>
 #include "semant.h"
 #include "utilities.h"
 
 
-extern int semant_debug;
-extern char *curr_filename;
+extern int semant_debug;            /* debug flag */
+extern char *curr_filename;         /* will be used in cgen */
+
 
 //////////////////////////////////////////////////////////////////////
 //
@@ -82,23 +84,719 @@ static void initialize_constants(void)
 }
 
 
-
+/* the WHOLE AST will be build in this constructor */
 ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) {
 
-    /* Fill this in */
+    class_symtable.enterscope();
+    install_basic_classes();
+
+    Symbol class_name;
+    c_node current_class; 
+    // Do some check in the first loop, build class symbol table
+    for ( int i = classes->first(); classes->more(i); i = classes->next(i) ) {
+
+        current_class = (c_node)classes->nth(i);
+        class_name = current_class->get_name();
+
+        if(class_name == SELF_TYPE || class_name == Object || class_name == Int || 
+                class_name == Str || class_name == IO){
+            ostream& os =  semant_error(current_class);
+            os << "Redifinition of basic class " << class_name << "." << endl;
+            continue;
+        }
+
+        else  if( class_symtable.lookup(class_name) != NULL ){
+            //  check the situation of class multiply defined. 
+            ostream& os =  semant_error(current_class);
+            os << "Class " << class_name << " was previously defined." << endl;
+            continue;
+        } 
+
+
+        class_symtable.addid(class_name,current_class);
+    }
+    // first scan, not related to expression
+    for( int i = classes->first(); classes->more(i); i = classes->next(i) ){
+        current_class = (c_node)classes->nth(i);
+        semant_class(current_class);
+    }
+
+    //check Main 
+    if ( class_symtable.probe(Main) == NULL){
+        ostream& os =  semant_error();
+        os << "Class main is not defined." << endl;
+    }
+
+    else {
+        c_node main_class = (c_node)class_symtable.probe(Main);
+        Table main_table = main_class->featureTable;
+        // must do this probe after semant_class
+        if ( main_table.probe(main_meth) == NULL ){ 
+            ostream& os =  semant_error(main_class);
+            os << "no 'main' method in class Main." << endl;
+        }
+
+    }
+
+
+    // second scan, check expression
+    for( int i = classes->first(); classes->more(i); i = classes->next(i) ){
+        current_class = (c_node)classes->nth(i);
+        semant_class_attr(current_class);
+    }
+
+
+    class_symtable.exitscope();
+}
+
+// first scan
+void ClassTable::semant_class(c_node current_class){
+
+    Table current_table = current_class->featureTable;
+    current_table.enterscope();
+
+    Symbol class_name = current_class->get_name();
+    Symbol parent_name;
+
+    if ( class_name != Object ){
+        parent_name = current_class->get_parent();
+
+        if ( parent_name == Bool || parent_name == SELF_TYPE || parent_name == Str){
+            ostream& os =  semant_error(current_class);
+            os << "Class " << class_name << " cannot inherit from class " << parent_name << "." << endl;
+        }
+
+        else if ( class_symtable.lookup(parent_name) == NULL ){
+            ostream& os =  semant_error(current_class);
+            os << "Class " << class_name << " inherits from an undefined class " << parent_name << "." << endl;
+        }
+    }
+
+    Features features = current_class->get_features();
+
+    for( int i = features->first(); features->more(i); i = features->next(i) ){
+        Feature feature = features->nth(i);
+        if ( feature->get_type() == attrType ){
+            semant_attr( current_class, (attr_class*)feature );         
+        }
+        else if ( feature-> get_type() == methodType ){
+            semant_method( current_class, (method_class*)feature );       
+        }
+    } 
+
 
 }
+
+
+// second scan
+void ClassTable::semant_class_attr(c_node current_class){
+
+    Table current_table = current_class->featureTable;
+
+    Symbol class_name = current_class->get_name();
+    Symbol parent_name;
+    Features features = current_class->get_features();
+
+    for( int i = features->first(); features->more(i); i = features->next(i) ){
+        Feature feature = features->nth(i);
+        if ( feature->get_type() == attrType ){
+            semant_attr_expr( current_class, (attr_class*)feature );         
+        }
+        else if ( feature-> get_type() == methodType ){
+            semant_method_expr( current_class, (method_class*)feature );       
+        }
+    } 
+
+}
+
+
+// First scan
+void ClassTable::semant_attr(c_node current_class,attr_class* attr){
+    Symbol attr_name = attr->get_name();
+    Table current_table = current_class->featureTable;
+    Symbol attr_type = attr->get_type_decl();
+
+    if( class_symtable.lookup(attr_type) == NULL){
+        ostream& os = semant_error(current_class);
+        os << "attribute " << attr_name << " declared with undefined type " << attr_type << endl;
+    }
+
+    if ( attr_name == self ){
+        ostream& os = semant_error(current_class);
+        os << "Cannot assign to 'self'." << endl;
+    }
+    
+    else if ( current_table.probe(attr_name) ){
+        ostream& os = semant_error(current_class);
+        os << "attribute " << attr_name << " is multiply defined " << endl;
+    }
+
+    current_table.addid(attr_name,attr);
+
+}
+
+// First scan
+void ClassTable::semant_method(c_node current_class,method_class* method){
+    Symbol method_name = method->get_name();
+    Table current_table = current_class->featureTable;
+    Symbol ret_type = method->get_return_type();
+    Formals formals = method->get_formals();
+    Expression expr = method->get_expr();
+
+    if( class_symtable.lookup(ret_type) == NULL){
+        ostream& os = semant_error(current_class);
+        os << "method " << method_name << " return undefined type " << ret_type << endl;
+    }
+
+    if ( current_table.probe(method_name) ){
+        ostream& os = semant_error(current_class);
+        os << "method " << method_name << " is multiply defined " << endl;
+    }
+
+
+    current_table.addid(method_name,method);
+}
+
+// second scan
+void ClassTable::semant_attr_expr(c_node current_class,attr_class* attr){
+    Symbol attr_name = attr->get_name();
+    Table current_table = current_class->featureTable;
+    Symbol attr_type = attr->get_type_decl();
+    Expression init = attr->get_init();
+    semant_expr(current_class, init);
+	
+	/*this is_subclass fumction checks the type compatibility of attribute type and type of the expression*/
+    if ( is_subclass(attr_type , init->type) == false ){
+        ostream& os = semant_error(current_class);
+        os << "expression type " << init->type <<" must conform to attribution type " << attr_type << "." << endl; 
+    }
+    
+}
+
+// second scan
+void ClassTable::semant_method_expr(c_node current_class,method_class* method){
+    Formals formals = method->get_formals();
+    Symbol ret_type = method->get_return_type();
+    Table current_table = current_class->featureTable;
+    current_table.enterscope();
+    for( int i = formals->first(); formals->more(i); i = formals->next(i) ){
+        Formal f = formals->nth(i);
+        semant_formal(current_class,f);
+    }
+    Expression expr = method->get_expr();
+    semant_expr(current_class,expr);
+
+    current_table.exitscope();
+
+	/*this is_subclass fumction checks the type compatibility of return type and type of the expression*/
+    if ( is_subclass(ret_type , expr->type) == false ){
+        ostream& os = semant_error(current_class);
+        os << "expression type " << expr->type <<" must conform to return type " << ret_type << "." << endl; 
+    }
+    
+}
+
+
+
+void ClassTable::semant_formal(c_node current_class,Formal f){
+    Table current_table = current_class->featureTable;
+    formal_class * formal = (formal_class*) f;
+    
+    if (formal->get_name() == self){
+        ostream& os = semant_error(current_class);
+        os << "'self' as a formal identifier." <<endl; 
+    
+    }
+
+    else if(current_table.probe(formal->get_name() ) ){
+        ostream& os = semant_error(current_class);
+        os << "formal " << formal->get_name() << "was defined previously." <<endl; 
+    }
+    
+    if(formal->get_type_decl() == SELF_TYPE){
+        ostream& os = semant_error(current_class);
+        os << "SELF_TYPE as a formal type.\n";
+    }
+
+    else if(class_symtable.lookup(formal->get_type_decl()) == NULL ) {
+        ostream& os = semant_error(current_class);
+        os << "formal " << formal->get_name() << "has undefined type " << formal->get_type_decl() << "." << endl; 
+    }
+    current_table.addid(formal->get_name(), formal);
+}
+
+
+void ClassTable::semant_expr(c_node current_class,Expression expr){
+
+    expr->type = No_type; // for error handle
+
+    switch (expr->get_type()){
+        case assignType:
+            {
+                assign_class* classptr = (assign_class*) expr;
+                Table current_table = current_class->featureTable;
+                Feature feature = (Feature)current_table.lookup(classptr->get_name()); 
+                if(feature == NULL || feature->get_type() != attrType){
+                    ostream& os = semant_error(current_class);
+                    os << classptr->get_name() << " : identifier not defined.\n";
+                }
+                else {
+                    semant_expr(current_class,classptr->get_expr());
+                    if(is_subclass(get_feature_type(feature),classptr->get_expr()->type)){
+                        expr->type = classptr->get_expr()->type;
+                    }
+                    else {
+                        ostream& os = semant_error(current_class);
+                        os << "expression return type " << classptr->get_expr()->type << " not conform to identifier " << classptr->get_name() << "'s type " << get_feature_type(feature) << ".\n";
+                    }
+                }
+                break;
+            }
+        case static_dispatchType:
+            {
+                break;
+            }
+        case dispatchType:
+            {
+                break;
+            }
+        case condType:
+            {
+				cond_class * classptr = (cond_class*)expr;
+				
+				Expression e1 = classptr->get_pred();
+				Expression e2 = classptr->get_then_exp();
+				Expression e3 = classptr->get_else_exp();
+
+				semant_expr(current_class,e1);
+				if(e1->type!=Bool){
+					ostream& os = semant_error(current_class);
+                 	os <<   "Predicate of 'if' does not have type Bool" << ".\n";
+				}
+				
+				semant_expr(current_class,e2);
+  				semant_expr(current_class,e3);
+
+				expr->type = get_union(e2->type,e3->type);
+
+                break;
+            }
+        case loopType:
+            {
+				loop_class* loop = (loop_class*) expr ;
+				Expression pred = loop->get_pred();
+				Expression body = loop->get_body();
+			
+				semant_expr(current_class,pred);
+				Symbol pred_type = pred->type;
+				if(pred_type!=Bool){
+					ostream& os = semant_error(current_class);
+                 	os <<   "Loop condition does not have type Bool" << ".\n";
+				}
+
+				semant_expr(current_class,body);
+				expr->type = Object;				
+                break;
+            }
+        case caseType:
+            {
+				typcase_class* typcase = (typcase_class*) expr ;
+				Cases cases = typcase->get_cases();
+				Table current_table = current_class->featureTable;
+				Expression e0 = typcase->get_expr();
+				semant_expr(current_class,e0);
+				
+				std::vector<Symbol> used;
+		
+				Symbol type, prev_type ;
+   
+				for(int i = cases->first() ; cases->more(i) ; i = cases->next(i) ){
+					prev_type = type;
+ 
+					branch_class* c = (branch_class*)cases->nth(i);
+					Symbol type_decl = c->get_type_decl();
+					 
+					if (std::find(used.begin(), used.end(), type_decl) == used.end() ) {
+            			used.push_back(type_decl);
+        			} else {
+            			ostream& os = semant_error(current_class);
+                        os <<   "Duplicate branch " << type_decl << " in case statement." << ".\n";
+           				return;
+        			}
+					
+					current_table.enterscope();
+
+					current_table.addid(c->get_name(),c);
+
+					semant_expr(current_class,c->get_expr());
+                    
+                    type = c->get_expr()->type;
+
+					if(i>0){
+						type = get_union(type,prev_type);
+					}                    
+					current_table.exitscope();					
+				}
+				expr->type = type;
+                break;
+            }
+        case blockType:
+            {
+				block_class* classptr = (block_class*)expr;
+				Expressions exprs = classptr->get_body();
+				
+				Symbol last_type;
+				for(int i = exprs->first();exprs->more(i);i = exprs->next(i)){
+					Expression nth = exprs->nth(i);					
+					semant_expr(current_class,nth);
+					last_type = nth->type;
+				}				
+				
+				expr->type = last_type;
+                break;
+            }
+        case letType:
+            {
+				let_class* classptr = (let_class*)expr;
+				Table current_table = current_class->featureTable;
+
+				Expression init = classptr->get_init();
+				Symbol t0 = classptr->get_type_decl();
+				Symbol identifier = classptr->get_identifier();
+				Expression body = classptr->get_body();				
+
+				semant_expr(current_class,init);				
+				Symbol t1 = init->type;
+				
+				Symbol type = Object;
+
+				if(t1!=No_type){
+					//type cheking for let with init					
+					if (!is_subclass(t0, t1)) {
+        				ostream& os = semant_error(current_class);
+                    	os << "Inferred type " << t1 << " of initialization of " << classptr->get_identifier() << " does not confirm to identifier's declared type "<<t0<<"."<< endl;
+    				}
+				}
+				
+				current_table.enterscope();
+
+				if(identifier==self){
+					ostream& os = semant_error(current_class);
+                  	os << "'self' cannot be bound in a 'let' expression."<< endl;
+				}
+				else{
+					/*TODO: check whether adding let node is correct*/
+					current_table.addid(identifier,classptr);
+				}				
+				
+				semant_expr(current_class,body);
+				type = body->type;					
+					
+				current_table.exitscope();
+				
+				expr->type = type;
+                break;
+            }
+        case plusType:
+            {
+                plus_class* classptr = (plus_class*)expr;
+                semant_expr(current_class,classptr->get_e1());
+                semant_expr(current_class,classptr->get_e2());
+                if( classptr->get_e1()->type == Int && classptr->get_e2()->type == Int){
+                    expr->type = Int;
+                }
+                else {
+                    ostream& os = semant_error(current_class);
+                    os << "non-Int arguments: " << classptr->get_e1()->type << " + " << classptr->get_e2()->type << "."<<endl;
+                }
+                break;
+            }
+        case subType:
+            {
+                sub_class* classptr = (sub_class*)expr;
+                semant_expr(current_class,classptr->get_e1());
+                semant_expr(current_class,classptr->get_e2());
+                if( classptr->get_e1()->type == Int && classptr->get_e2()->type == Int){
+                    expr->type = Int;
+                }
+                else {
+                    ostream& os = semant_error(current_class);
+                    os << "non-Int arguments: " << classptr->get_e1()->type << " - " << classptr->get_e2()->type << "."<<endl;
+                }
+                break;
+            }
+        case mulType:
+            {
+                mul_class* classptr = (mul_class*)expr;
+                semant_expr(current_class,classptr->get_e1());
+                semant_expr(current_class,classptr->get_e2());
+                if( classptr->get_e1()->type == Int && classptr->get_e2()->type == Int){
+                    expr->type = Int;
+                }
+                else {
+                    ostream& os = semant_error(current_class);
+                    os << "non-Int arguments: " << classptr->get_e1()->type << " * " << classptr->get_e2()->type << "."<<endl;
+                }
+                break;
+            }
+        case divType:
+            {
+                divide_class* classptr = (divide_class*)expr;
+                semant_expr(current_class,classptr->get_e1());
+                semant_expr(current_class,classptr->get_e2());
+                if( classptr->get_e1()->type == Int && classptr->get_e2()->type == Int){
+                    expr->type = Int;
+                }
+                else {
+                    ostream& os = semant_error(current_class);
+                    os << "non-Int arguments: " << classptr->get_e1()->type << " + " << classptr->get_e2()->type << "." << endl;
+                }
+                break;
+            }
+        case negType:
+            {
+                neg_class* classptr = (neg_class*) expr;
+                semant_expr(current_class,classptr->get_e1());
+                if( classptr->get_e1()->type == Int){
+                    expr->type = Int;
+                }
+                else {
+                    ostream& os = semant_error(current_class);
+                    os << "non-Int arguments: " << classptr->get_e1()->type <<  "." << endl;
+                }
+                break;
+            }
+        case ltType:
+            {
+                lt_class* classptr = (lt_class*) expr;
+                semant_expr(current_class,classptr->get_e1());
+                semant_expr(current_class,classptr->get_e2());
+                if( classptr->get_e1()->type == Int && classptr->get_e2()->type == Int){
+                    expr->type = Bool;
+                }
+                else {
+                    ostream& os = semant_error(current_class);
+                    os << "non-Int arguments: " << classptr->get_e1()->type <<  " = " << classptr->get_e2()->type << "." << endl;
+                }
+ 
+                break;
+            }
+        case eqType:
+            {
+                eq_class* classptr = (eq_class*) expr;
+                semant_expr(current_class,classptr->get_e1());
+                semant_expr(current_class,classptr->get_e2());
+                if( classptr->get_e1()->type == Int && classptr->get_e2()->type == Int){
+                    expr->type = Bool;
+                }
+                else {
+                    ostream& os = semant_error(current_class);
+                    os << "non-Int arguments: " << classptr->get_e1()->type <<  " = " << classptr->get_e2()->type << "." << endl;
+                }
+ 
+                break;
+            }
+        case leqType:
+            {
+                leq_class* classptr = (leq_class*) expr;
+                semant_expr(current_class,classptr->get_e1());
+                semant_expr(current_class,classptr->get_e2()); 
+                if( classptr->get_e1()->type == Int && classptr->get_e2()->type == Int){
+                    expr->type = Bool;
+                }
+                else {
+                    ostream& os = semant_error(current_class);
+                    os << "non-Int arguments: " << classptr->get_e1()->type <<  " <= " << classptr->get_e2()->type << "." << endl;
+                }
+                break;
+            }
+        case compType:
+            {
+                comp_class* classptr = (comp_class*) expr;
+                semant_expr(current_class,classptr->get_e1());
+                if( classptr->get_e1()->type == Int){
+                    expr->type = Int;
+                }
+                else {
+                    ostream& os = semant_error(current_class);
+                    os << "non-Int arguments: " << classptr->get_e1()->type <<  "." << endl;
+                }
+
+                break;
+            }
+        case int_constType:
+            {
+                expr->type = Int;
+                break;
+            }
+        case bool_constType:
+            {
+                expr->type = Bool;
+                break;
+            }
+        case string_constType:
+            {
+                expr->type = Str;
+                break;
+            }
+        case newType:
+            {
+                new__class* classptr = (new__class*)expr;
+                Symbol type_name = classptr->get_type_name();
+                if (type_name == SELF_TYPE){
+                    expr->type = current_class->get_name();
+                }
+                else {
+                    expr->type = type_name;
+                }
+                break;
+            }
+        case isvoidType:
+            {
+                expr->type = Bool;
+                break;
+            }
+        case no_exprType:
+            {
+                expr->type = No_type;
+                break;
+            }
+        case objectType:
+            {
+                object_class* classptr = (object_class*) expr;
+                Table current_table = current_class->featureTable;
+                Symbol name = classptr->get_name();
+                Feature feature = (Feature)current_table.lookup(name);
+                if( feature == NULL || feature->get_type() == methodType){
+                    ostream& os = semant_error(current_class);
+                    os << "Undeclared identifier " << name << endl;
+                }
+                else{
+                   expr->type = get_feature_type(feature);
+                }
+                break;
+            }
+
+        default:
+            break;
+    }
+
+}
+
+
+
+/*
+ *  subroutines that helps implement the semantic analysis
+ *
+ *  is_subclass(Symbol parent, Symbol child) : check if inheritance exists
+ * 
+ *  get_union (Symbol type1,Symbol type2) : find the least upper bound between two input types
+ *
+ *  get_feature_type(c_node class,Feature feature):find the type of the feature
+ */
+
+bool ClassTable::is_subclass(Symbol parent, Symbol child) {
+    if ( parent == child || parent == Object || child == No_type ){
+        return true;
+    }
+
+    while (child != No_class){
+        c_node c = (c_node) class_symtable.lookup(child);
+        if (c == NULL){
+            return false;
+        }
+        child = c->get_parent();
+        if (child == parent){
+            return true;
+        }
+    }
+    return false;
+}
+
+Symbol ClassTable::get_union(Symbol curr_type, Symbol prev_type){
+
+	std::stack<Symbol> curr_stack, prev_stack;
+    
+	class__class* curr = static_cast<class__class*>(class_symtable.lookup(curr_type));
+
+    while (curr != NULL) {
+        curr_stack.push(curr->get_name());
+        curr = static_cast<class__class*>(class_symtable.lookup(curr->get_parent()));
+    }
+
+    curr = static_cast<class__class*>(class_symtable.lookup(prev_type));
+
+    while (curr != NULL) {
+        prev_stack.push(curr->get_name());
+        curr = static_cast<class__class*>(class_symtable.lookup(curr->get_parent()));
+    }
+
+    Symbol curr_head = curr_stack.top();
+    curr_stack.pop();
+
+    Symbol prev_head = prev_stack.top();
+    prev_stack.pop();
+
+    Symbol common_type = curr_head;
+
+    while (prev_head == curr_head && !curr_stack.empty() && !prev_stack.empty()) {
+         
+		curr_head = curr_stack.top();
+        curr_stack.pop();
+
+        prev_head = prev_stack.top();
+        prev_stack.pop();
+
+        if (curr_head == prev_head) {
+        	common_type = curr_head;
+        }
+    }
+    return common_type;
+	
+}
+
+Symbol ClassTable::lub(Symbol type1,Symbol type2){
+    if(is_subclass(type1,type2) || type2 == No_type){
+        return type1;
+    }
+    else if(is_subclass(type2,type1) || type1 == No_type ){
+        return type2;
+    }
+    else {
+        c_node c = (c_node) class_symtable.lookup(type1);
+        type1 = c->get_parent(); 
+        return lub(type1,type2); 
+    }
+}
+
+
+Symbol ClassTable::get_feature_type(Feature feature){
+    if(feature->get_type() == attrType){
+        attr_class* attr = (attr_class*) feature;
+        return attr->get_type_decl();
+    }
+    else {
+        method_class* method = (method_class*) feature;
+        return method->get_return_type();
+    }  
+}
+
+
+/*
+ * subroutines end
+ */
+
 
 void ClassTable::install_basic_classes() {
 
     // The tree package uses these globals to annotate the classes built below.
-   // curr_lineno  = 0;
+    // curr_lineno  = 0;
     Symbol filename = stringtable.add_string("<basic class>");
-    
+
     // The following demonstrates how to create dummy parse trees to
     // refer to basic Cool classes.  There's no need for method
     // bodies -- these are already built into the runtime system.
-    
+
     // IMPORTANT: The results of the following expressions are
     // stored in local variables.  You will want to do something
     // with those variables at the end of this method to make this
@@ -114,14 +812,14 @@ void ClassTable::install_basic_classes() {
     // are already built in to the runtime system.
 
     Class_ Object_class =
-	class_(Object, 
-	       No_class,
-	       append_Features(
-			       append_Features(
-					       single_Features(method(cool_abort, nil_Formals(), Object, no_expr())),
-					       single_Features(method(type_name, nil_Formals(), Str, no_expr()))),
-			       single_Features(method(copy, nil_Formals(), SELF_TYPE, no_expr()))),
-	       filename);
+        class_(Object, 
+                No_class,
+                append_Features(
+                    append_Features(
+                        single_Features(method(cool_abort, nil_Formals(), Object, no_expr())),
+                        single_Features(method(type_name, nil_Formals(), Str, no_expr()))),
+                    single_Features(method(copy, nil_Formals(), SELF_TYPE, no_expr()))),
+                filename);
 
     // 
     // The IO class inherits from Object. Its methods are
@@ -131,34 +829,34 @@ void ClassTable::install_basic_classes() {
     //        in_int() : Int                      "   an int     "  "     "
     //
     Class_ IO_class = 
-	class_(IO, 
-	       Object,
-	       append_Features(
-			       append_Features(
-					       append_Features(
-							       single_Features(method(out_string, single_Formals(formal(arg, Str)),
-										      SELF_TYPE, no_expr())),
-							       single_Features(method(out_int, single_Formals(formal(arg, Int)),
-										      SELF_TYPE, no_expr()))),
-					       single_Features(method(in_string, nil_Formals(), Str, no_expr()))),
-			       single_Features(method(in_int, nil_Formals(), Int, no_expr()))),
-	       filename);  
+        class_(IO, 
+                Object,
+                append_Features(
+                    append_Features(
+                        append_Features(
+                            single_Features(method(out_string, single_Formals(formal(arg, Str)),
+                                    SELF_TYPE, no_expr())),
+                            single_Features(method(out_int, single_Formals(formal(arg, Int)),
+                                    SELF_TYPE, no_expr()))),
+                        single_Features(method(in_string, nil_Formals(), Str, no_expr()))),
+                    single_Features(method(in_int, nil_Formals(), Int, no_expr()))),
+                filename);  
 
     //
     // The Int class has no methods and only a single attribute, the
     // "val" for the integer. 
     //
     Class_ Int_class =
-	class_(Int, 
-	       Object,
-	       single_Features(attr(val, prim_slot, no_expr())),
-	       filename);
+        class_(Int, 
+                Object,
+                single_Features(attr(val, prim_slot, no_expr())),
+                filename);
 
     //
     // Bool also has only the "val" slot.
     //
     Class_ Bool_class =
-	class_(Bool, Object, single_Features(attr(val, prim_slot, no_expr())),filename);
+        class_(Bool, Object, single_Features(attr(val, prim_slot, no_expr())),filename);
 
     //
     // The class Str has a number of slots and operations:
@@ -169,25 +867,33 @@ void ClassTable::install_basic_classes() {
     //       substr(arg: Int, arg2: Int): Str     substring selection
     //       
     Class_ Str_class =
-	class_(Str, 
-	       Object,
-	       append_Features(
-			       append_Features(
-					       append_Features(
-							       append_Features(
-									       single_Features(attr(val, Int, no_expr())),
-									       single_Features(attr(str_field, prim_slot, no_expr()))),
-							       single_Features(method(length, nil_Formals(), Int, no_expr()))),
-					       single_Features(method(concat, 
-								      single_Formals(formal(arg, Str)),
-								      Str, 
-								      no_expr()))),
-			       single_Features(method(substr, 
-						      append_Formals(single_Formals(formal(arg, Int)), 
-								     single_Formals(formal(arg2, Int))),
-						      Str, 
-						      no_expr()))),
-	       filename);
+        class_(Str, 
+                Object,
+                append_Features(
+                    append_Features(
+                        append_Features(
+                            append_Features(
+                                single_Features(attr(val, Int, no_expr())),
+                                single_Features(attr(str_field, prim_slot, no_expr()))),
+                            single_Features(method(length, nil_Formals(), Int, no_expr()))),
+                        single_Features(method(concat, 
+                                single_Formals(formal(arg, Str)),
+                                Str, 
+                                no_expr()))),
+                    single_Features(method(substr, 
+                            append_Formals(single_Formals(formal(arg, Int)), 
+                                single_Formals(formal(arg2, Int))),
+                            Str, 
+                            no_expr()))),
+                filename);
+
+    // add primitive class into class table
+    class_symtable.addid(Object,(class__class*)Object_class); 
+    class_symtable.addid(IO,(class__class*)IO_class); 
+    class_symtable.addid(Int,(class__class*)Int_class); 
+    class_symtable.addid(Bool,(class__class*)Bool_class); 
+    class_symtable.addid(Str,(class__class*)Str_class); 
+
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -225,31 +931,28 @@ ostream& ClassTable::semant_error()
 
 
 /*   This is the entry point to the semantic checker.
-
      Your checker should do the following two things:
-
      1) Check that the program is semantically correct
      2) Decorate the abstract syntax tree with type information
-        by setting the `type' field in each Expression node.
-        (see `tree.h')
-
+     by setting the `type' field in each Expression node.
+     (see `tree.h')
      You are free to first do 1), make sure you catch all semantic
      errors. Part 2) can be done in a second stage, when you want
      to build mycoolc.
- */
+     */
 void program_class::semant()
 {
     initialize_constants();
 
     /* ClassTable constructor may do some semantic analysis */
+
+    // the parameter 'classes' was received from the result of parser. 
     ClassTable *classtable = new ClassTable(classes);
 
     /* some semantic analysis code may go here */
 
     if (classtable->errors()) {
-	cerr << "Compilation halted due to static semantic errors." << endl;
-	exit(1);
+        cerr << "Compilation halted due to static semantic errors." << endl;
+        exit(1);
     }
 }
-
-
