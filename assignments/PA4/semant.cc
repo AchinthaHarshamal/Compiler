@@ -595,6 +595,11 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 
 				Expression init = classptr->get_init();
 				Symbol t0 = classptr->get_type_decl();
+
+				if(t0==SELF_TYPE){
+					t0 = current_class->get_name();
+				}				
+
 				Symbol identifier = classptr->get_identifier();
 				Expression body = classptr->get_body();				
 
