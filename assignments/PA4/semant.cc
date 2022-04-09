@@ -279,11 +279,17 @@ void ClassTable::semant_method_expr(c_node current_class,method_class* method){
     Symbol ret_type = method->get_return_type();
     Table current_table = current_class->featureTable;
     current_table.enterscope();
+
     for( int i = formals->first(); formals->more(i); i = formals->next(i) ){
         Formal f = formals->nth(i);
         semant_formal(current_class,f);
     }
     Expression expr = method->get_expr();
+
+	if(ret_type == SELF_TYPE){
+		ret_type = current_class->get_name();	
+	}
+
     semant_expr(current_class,expr);
 
     current_table.exitscope();
@@ -805,12 +811,13 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                 Table current_table = current_class->featureTable;
                 Symbol name = classptr->get_name();
                 Feature feature = (Feature)current_table.lookup(name);
-                if( feature == NULL || feature->get_type() == methodType){
+                
+				if( feature == NULL || feature->get_type() == methodType){
                     ostream& os = semant_error(current_class);
                     os << "Undeclared identifier " << name << endl;
                 }
                 else{
-                   expr->type = get_feature_type(feature);
+             		expr->type = get_feature_type(feature);
                 }
                 break;
             }
@@ -913,6 +920,10 @@ Symbol ClassTable::get_feature_type(Feature feature){
         attr_class* attr = (attr_class*) feature;
         return attr->get_type_decl();
     }
+	else if(feature->get_type()==formalType){
+		formal_class* formal = (formal_class*) feature;
+		return formal->get_type_decl();
+	}
     else {
         method_class* method = (method_class*) feature;
         return method->get_return_type();
