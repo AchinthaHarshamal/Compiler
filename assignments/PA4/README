@@ -164,3 +164,93 @@ Instructions
 
 Write-up for PA4
 ----------------
+
+Initially, the `classes` parameter is received from the result of the parser. That parameter was used whole over the program to develop the Semantica analyzer.
+
+We have built our semantic analyzer in a few main steps,
+
+	1) First traversing of AST
+		- building the class symbol table(class_symtable)
+		- checking  whether the class name is not the same as the name of the basic classes 
+		- checking whether the class is not already implemented
+		- correct classes are added to the class symbol table
+		  otherwise, give and error  
+
+	2) First scaning of the AST
+		- checking all inheritances are semantically correct
+			- checking all parent class are already defined
+			- checking whether the Object class not have a parent class
+			- checking whether Bool,Str,Self_type are not inherited
+		- checking all features(methods & attribute) in the classes
+			- Attribute
+				- checking whether all types are already defined
+				- checking whether the attribute name is not equal to 'self'
+				- checking whether the attribute is not already defined
+				- if the attribute passes all the above checks, It will be added to the current scope
+
+			- Method
+				- checking whether the method is not already defined
+				- checking whether the return type is already implmented in the program
+				- if the method passes all the above checks, It will be added to the current scope
+
+	3) Checking the Main class and the Main method
+			- checking whether the Main class appears in the program
+			- if the Main class is present
+				- checking whether the main method appears in the Main class
+			- if not giveing an error
+
+	4) Second scanning of the AST
+			- this step is mainly for checking the expressions and formals in features and assigning types for expressions
+			- Attribute
+				- checking whether the assigned expression is semantically correct and then assign a type for it(described below)
+				- checking whether the type declaration of the attribute is the same as the expression type
+			- Method
+				- opening a new scope
+				- checking whether all formals(arguments) are semantically correct
+					- checking whether formals name are not equal to 'self'
+					- checking whether the formal name is not already defined in current
+					- if formals are semantically correct it is added to the current scope
+				- checking whether the return type is 'SELF_TYPE', if so set the return type 
+				  as the current class type
+				- checking whether the method body(expression) is semantically correct and assign a type for it(described bellow)
+				- finally, checking whether the return type is same as the method body type of the method
+
+Checking expression and assigning a type for expression is a main part of the Semantic analyzer, `semant_expr()` function performs it for us, Which will check all the semantics errors in the expression types shown in following and setting the type field of AST. 
+
+	- assignType
+	- static_dispatchType
+	- disatchType
+	- condType
+	- loopType
+	- caseType
+	- blockType
+	- letType
+	- plusType
+	- subType
+	- mulType
+	- divType
+	- negType
+	- ltType
+	- eqType
+	- compType
+	- int_constType
+	- bool_constType
+	- string_constType
+	- newType
+	- isvoidType
+	- no_exprType
+	- objectType
+
+All type checks and semantic analysis are performed the same as that given in the COOL  manual. 
+
+
+Output
+- if the program is semantically correct it gives the AST with Types
+- if the program has semantic errors all captured error gives as the output 
+
+
+Test Cases
+- Generated analyzer tested with lot of correct and wrong programs and check wether the result are same as the given semantic analyzer. Every test case is passed with a good probability with few errors(bugs).
+
+- Known & recognized bugs in the analyzer
+	- line numbers are not correct while for generated error
