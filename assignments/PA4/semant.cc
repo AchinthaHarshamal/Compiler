@@ -295,7 +295,7 @@ void ClassTable::semant_method_expr(c_node current_class,method_class* method){
 
     current_table.exitscope();
 
-	/*this is_subclass fumction checks the type compatibility of return type and type of the expression*/
+	/*this is_subclass function checks the type compatibility of return type and type of the expression*/
     if ( is_subclass(ret_type , expr->type,current_class->get_name()) == false ){
         ostream& os = semant_error(current_class);
         os << "expression type " << expr->type <<" must conform to return type " << ret_type << "." << endl; 
@@ -1072,7 +1072,8 @@ void ClassTable::install_basic_classes() {
 ///////////////////////////////////////////////////////////////////
 
 ostream& ClassTable::semant_error(Class_ c)
-{                                                             
+{         
+
     return semant_error(c->get_filename(),c);
 }    
 
