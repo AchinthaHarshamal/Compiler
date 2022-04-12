@@ -168,6 +168,7 @@ Write-up for PA4
 Initially, the `classes` parameter is received from the result of the parser. That parameter was used whole over the program to develop the Semantica analyzer.
 
 We have built our semantic analyzer in a few main steps,
+
 	1) First traversing of AST
 		- building the class symbol table(class_symtable)
 		- checking  whether the class name is not the same as the name of the basic classes 
@@ -215,6 +216,7 @@ We have built our semantic analyzer in a few main steps,
 				- finally, checking whether the return type is same as the method body type of the method
 
 Checking expression and assigning a type for expression is a main part of the Semantic analyzer, `semant_expr()` function performs it for us, Which will check all the semantics errors in the expression types shown in following and setting the type field of AST. 
+
 	- assignType
 	- static_dispatchType
 	- disatchType
