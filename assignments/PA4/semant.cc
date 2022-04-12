@@ -266,7 +266,7 @@ void ClassTable::semant_attr_expr(c_node current_class,attr_class* attr){
     semant_expr(current_class, init);
 	
 	/*this is_subclass fumction checks the type compatibility of attribute type and type of the expression*/
-    if ( is_subclass(attr_type , init->type) == false ){
+    if ( is_subclass(attr_type , init->type,current_class->get_name()) == false ){
         ostream& os = semant_error(current_class);
         os << "expression type " << init->type <<" must conform to attribution type " << attr_type << "." << endl; 
     }
@@ -279,6 +279,7 @@ void ClassTable::semant_method_expr(c_node current_class,method_class* method){
     Symbol ret_type = method->get_return_type();
     Table current_table = current_class->featureTable;
     current_table.enterscope();
+
 
     for( int i = formals->first(); formals->more(i); i = formals->next(i) ){
         Formal f = formals->nth(i);
@@ -295,7 +296,7 @@ void ClassTable::semant_method_expr(c_node current_class,method_class* method){
     current_table.exitscope();
 
 	/*this is_subclass fumction checks the type compatibility of return type and type of the expression*/
-    if ( is_subclass(ret_type , expr->type) == false ){
+    if ( is_subclass(ret_type , expr->type,current_class->get_name()) == false ){
         ostream& os = semant_error(current_class);
         os << "expression type " << expr->type <<" must conform to return type " << ret_type << "." << endl; 
     }
@@ -348,7 +349,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                 }
                 else {
                     semant_expr(current_class,classptr->get_expr());
-                    if(is_subclass(get_feature_type(feature),classptr->get_expr()->type)){
+                    if(is_subclass(get_feature_type(feature),classptr->get_expr()->type,current_class->get_name())){
                         expr->type = classptr->get_expr()->type;
                     }
                     else {
@@ -371,7 +372,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 				semant_expr(current_class,e0);
 				Symbol t0  = e0->type;
 
-				if(!is_subclass(t, t0)){
+				if(!is_subclass(t, t0,current_class->get_name())){
 					ostream& os = semant_error(current_class);
                     os <<"Expression type " << t0 << " does not conform to declared static dispatch type " << t << "." << endl;
 				}		
@@ -399,7 +400,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 						formal_class* f = (formal_class*)formals->nth(i);
 						Symbol type_formal = f->get_type_decl();
 
-						if(!is_subclass(type_formal , en->type)){
+						if(!is_subclass(type_formal , en->type,current_class->get_name())){
 							ostream& os = semant_error(current_class);
                      		os << "In call of method " << dispatch->get_name() << ", type " << en->type <<
                    			" of parameter " << f->get_name() << " does not conform to "
@@ -467,7 +468,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 						formal_class* f = (formal_class*)formals->nth(i);
 						Symbol type_formal = f->get_type_decl();
 
-						if(!is_subclass(type_formal , en->type)){
+						if(!is_subclass(type_formal , en->type,current_class->get_name())){
 							ostream& os = semant_error(current_class);
                      		os << "In call of method " << dispatch->get_name() << ", type " << en->type <<
                    			" of parameter " << f->get_name() << " does not conform to "
@@ -616,7 +617,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 
 				if(t1!=No_type){
 					//type cheking for let with init					
-					if (!is_subclass(t0, t1)) {
+					if (!is_subclass(t0, t1,current_class->get_name())) {
         				ostream& os = semant_error(current_class);
                     	os << "Inferred type " << t1 << " of initialization of " << classptr->get_identifier() << " does not confirm to identifier's declared type "<<t0<<"."<< endl;
     				}
@@ -810,15 +811,21 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                 object_class* classptr = (object_class*) expr;
                 Table current_table = current_class->featureTable;
                 Symbol name = classptr->get_name();
-                Feature feature = (Feature)current_table.lookup(name);
-                
-				if( feature == NULL || feature->get_type() == methodType){
-                    ostream& os = semant_error(current_class);
-                    os << "Undeclared identifier " << name << endl;
-                }
-                else{
-             		expr->type = get_feature_type(feature);
-                }
+
+                if(name==self){
+					expr->type = SELF_TYPE;
+				}
+				else {
+					Feature feature = (Feature)current_table.lookup(name);
+		
+					if( feature == NULL || feature->get_type() == methodType){
+		                ostream& os = semant_error(current_class);
+		                os << "Undeclared identifier " << name << endl;
+		            }
+		            else{
+		         		expr->type = get_feature_type(feature);
+		            }
+				}
                 break;
             }
 
@@ -840,8 +847,15 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
  *  get_feature_type(c_node class,Feature feature):find the type of the feature
  */
 
-bool ClassTable::is_subclass(Symbol parent, Symbol child) {
-    if ( parent == child || parent == Object || child == No_type ){
+bool ClassTable::is_subclass(Symbol parent, Symbol child,Symbol current_class) {
+    if (child == SELF_TYPE) {
+        if (parent == SELF_TYPE) {
+            return true;
+        }
+		child = current_class;
+    }
+
+	if ( parent == child || parent == Object || child == No_type ){
         return true;
     }
 
@@ -900,23 +914,8 @@ Symbol ClassTable::get_union(Symbol curr_type, Symbol prev_type){
 	
 }
 
-Symbol ClassTable::lub(Symbol type1,Symbol type2){
-    if(is_subclass(type1,type2) || type2 == No_type){
-        return type1;
-    }
-    else if(is_subclass(type2,type1) || type1 == No_type ){
-        return type2;
-    }
-    else {
-        c_node c = (c_node) class_symtable.lookup(type1);
-        type1 = c->get_parent(); 
-        return lub(type1,type2); 
-    }
-}
-
-
-Symbol ClassTable::get_feature_type(Feature feature){
-    if(feature->get_type() == attrType){
+Symbol ClassTable::get_feature_type(Feature feature){    
+	if(feature->get_type() == attrType){
         attr_class* attr = (attr_class*) feature;
         return attr->get_type_decl();
     }
