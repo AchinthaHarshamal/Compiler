@@ -165,9 +165,9 @@ Instructions
 Write-up for PA4
 ----------------
 
-Initially, the `classes` parameter is received from the result of the parser. That parameter was used whole over the program to develop the Semantica analyzer.
+Initially, the `classes` parameter is the AST received from the result of the parser. That parameter was used whole over the program to develop the Semantica analyzer.
 
-We have built our semantic analyzer in a few main steps,
+The semantic analyzer is built in a few main steps,
 
 	1) First traversing of AST
 		- building the class symbol table(class_symtable)
@@ -198,6 +198,14 @@ We have built our semantic analyzer in a few main steps,
 			- if the Main class is present
 				- checking whether the main method appears in the Main class
 			- if not giveing an error
+
+	The reason to use two passes is, in cool programming language, types and features in a class can be used before the class definition.
+	But, it is a must to make sure that these classes and features are defined later in the program.
+	Threfore, in the first pass all classes defined in the program are added to a table called class symbol table.
+	Methods and attributes of each class added to the feature table of each class.
+	In this way, it is possible to track all the classes and their features defined in the program.
+	Then in the second pass, all the expressions are checked whether they are semantically correct.
+	All steps given above (1,2,3) are done in the first pass.
 
 	4) Second scanning of the AST
 			- this step is mainly for checking the expressions and formals in features and assigning types for expressions
