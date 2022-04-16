@@ -1,3 +1,10 @@
+///////////////////////////////////////
+//	Authors :						 //
+//		Achintha Harshamal E/17/090	 //
+//		Esara Sithumal	E/17/176	 //
+///////////////////////////////////////
+
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -87,12 +94,15 @@ static void initialize_constants(void)
 /* the WHOLE AST will be build in this constructor */
 ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) {
 
-    class_symtable.enterscope();
-    install_basic_classes();
+    class_symtable.enterscope();	//start a scope 
+	//add basic classes of cool to table inside the scope that is previously created    
+	install_basic_classes();	
 
     Symbol class_name;
-    c_node current_class; 
-    // Do some check in the first loop, build class symbol table
+    c_node current_class;
+ 
+    // First pass, build class symbol table
+	// checks for the redefinitions of basic classes and multiple class definitions
     for ( int i = classes->first(); classes->more(i); i = classes->next(i) ) {
 
         current_class = (c_node)classes->nth(i);
@@ -112,25 +122,28 @@ ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) 
             continue;
         } 
 
-
+		// if class is well defined add to class symbol table
         class_symtable.addid(class_name,current_class);
     }
-    // first scan, not related to expression
+
+    // first pass, checks valid feature definitions in classes
+	// and add features to feature tables of classes
+	// Here, only checked for correctly defined method/attribute names and type names
     for( int i = classes->first(); classes->more(i); i = classes->next(i) ){
         current_class = (c_node)classes->nth(i);
         semant_class(current_class);
     }
 
-    //check Main 
+    //check Main class is defined, this must be done after first pass
+	// because the class and the method must be added to tables prior to check
     if ( class_symtable.probe(Main) == NULL){
         ostream& os =  semant_error();
         os << "Class main is not defined." << endl;
     }
-
     else {
         c_node main_class = (c_node)class_symtable.probe(Main);
         Table main_table = main_class->featureTable;
-        // must do this probe after semant_class
+        // if main class is defined, look for the main method
         if ( main_table.probe(main_meth) == NULL ){ 
             ostream& os =  semant_error(main_class);
             os << "no 'main' method in class Main." << endl;
@@ -138,48 +151,51 @@ ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) 
 
     }
 
-
-    // second scan, check expression
+    // second pass, in this pass all the expressions are type checked
     for( int i = classes->first(); classes->more(i); i = classes->next(i) ){
         current_class = (c_node)classes->nth(i);
         semant_class_attr(current_class);
     }
 
-
+	// exit from the scope
     class_symtable.exitscope();
 }
 
-// first scan
+// first pass, this function checks for the valid feature definitions
 void ClassTable::semant_class(c_node current_class){
-
+	// each class has it own feature table
     Table current_table = current_class->featureTable;
-    current_table.enterscope();
+    current_table.enterscope(); //start a scope in feature table
 
     Symbol class_name = current_class->get_name();
     Symbol parent_name;
-
+	
+	//check for valid inheritance in classes
     if ( class_name != Object ){
         parent_name = current_class->get_parent();
-
+		// error for inheriting from basic class
         if ( parent_name == Bool || parent_name == SELF_TYPE || parent_name == Str){
             ostream& os =  semant_error(current_class);
             os << "Class " << class_name << " cannot inherit from class " << parent_name << "." << endl;
         }
-
+		// error for inheriting from undefined class
         else if ( class_symtable.lookup(parent_name) == NULL ){
             ostream& os =  semant_error(current_class);
             os << "Class " << class_name << " inherits from an undefined class " << parent_name << "." << endl;
         }
     }
-
+	
+	//check attributes and methods in class
     Features features = current_class->get_features();
 
     for( int i = features->first(); features->more(i); i = features->next(i) ){
         Feature feature = features->nth(i);
         if ( feature->get_type() == attrType ){
-            semant_attr( current_class, (attr_class*)feature );         
+			//if current feature is a attribute, type check for attribute  
+            semant_attr( current_class, (attr_class*)feature );       
         }
         else if ( feature-> get_type() == methodType ){
+			//if current feature is a method, type check for method 
             semant_method( current_class, (method_class*)feature );       
         }
     } 
@@ -187,8 +203,56 @@ void ClassTable::semant_class(c_node current_class){
 
 }
 
+// First pass,this function checks for valid attribute definitions(names,type declerations are checked,expressions are not checked)
+void ClassTable::semant_attr(c_node current_class,attr_class* attr){
+    Symbol attr_name = attr->get_name();
+    Table current_table = current_class->featureTable;
+    Symbol attr_type = attr->get_type_decl();
+	// error for attribute declared with undefined types
+    if( class_symtable.lookup(attr_type) == NULL){
+        ostream& os = semant_error(current_class);
+        os << "attribute " << attr_name << " declared with undefined type " << attr_type << endl;
+    }
+	// cannot use self as attribute name
+    if ( attr_name == self ){
+        ostream& os = semant_error(current_class);
+        os << "Cannot assign to 'self'." << endl;
+    }
+    // error for multiple definitions of attribute names
+    else if ( current_table.probe(attr_name) ){
+        ostream& os = semant_error(current_class);
+        os << "attribute " << attr_name << " is multiply defined " << endl;
+    }
+	// if well defined add atribute to feature table of current class
+    current_table.addid(attr_name,attr);
 
-// second scan
+}
+
+// First pass,this function checks for valid method definitions(names,type declerations are checked,expressions are not checked)
+void ClassTable::semant_method(c_node current_class,method_class* method){
+    Symbol method_name = method->get_name();
+    Table current_table = current_class->featureTable;
+    Symbol ret_type = method->get_return_type();
+    Formals formals = method->get_formals();
+    Expression expr = method->get_expr();
+	// if return type is not in class symbol table
+    if( class_symtable.lookup(ret_type) == NULL){
+        ostream& os = semant_error(current_class);
+        os << "method " << method_name << " return undefined type " << ret_type << endl;
+    }
+	// check for multiple definitions
+    if ( current_table.probe(method_name) ){
+        ostream& os = semant_error(current_class);
+        os << "method " << method_name << " is multiply defined " << endl;
+    }
+	
+	// if well defined, add the method to feature table
+    current_table.addid(method_name,method);
+}
+
+
+
+// second pass,this function typechecks for features in a class
 void ClassTable::semant_class_attr(c_node current_class){
 
     Table current_table = current_class->featureTable;
@@ -196,12 +260,14 @@ void ClassTable::semant_class_attr(c_node current_class){
     Symbol class_name = current_class->get_name();
     Symbol parent_name;
     Features features = current_class->get_features();
-
+	// get the feature of the class from feature table
     for( int i = features->first(); features->more(i); i = features->next(i) ){
         Feature feature = features->nth(i);
-        if ( feature->get_type() == attrType ){
+		// type check attributes        
+		if ( feature->get_type() == attrType ){
             semant_attr_expr( current_class, (attr_class*)feature );         
         }
+		// type check methods
         else if ( feature-> get_type() == methodType ){
             semant_method_expr( current_class, (method_class*)feature );       
         }
@@ -210,60 +276,14 @@ void ClassTable::semant_class_attr(c_node current_class){
 }
 
 
-// First scan
-void ClassTable::semant_attr(c_node current_class,attr_class* attr){
-    Symbol attr_name = attr->get_name();
-    Table current_table = current_class->featureTable;
-    Symbol attr_type = attr->get_type_decl();
-
-    if( class_symtable.lookup(attr_type) == NULL){
-        ostream& os = semant_error(current_class);
-        os << "attribute " << attr_name << " declared with undefined type " << attr_type << endl;
-    }
-
-    if ( attr_name == self ){
-        ostream& os = semant_error(current_class);
-        os << "Cannot assign to 'self'." << endl;
-    }
-    
-    else if ( current_table.probe(attr_name) ){
-        ostream& os = semant_error(current_class);
-        os << "attribute " << attr_name << " is multiply defined " << endl;
-    }
-
-    current_table.addid(attr_name,attr);
-
-}
-
-// First scan
-void ClassTable::semant_method(c_node current_class,method_class* method){
-    Symbol method_name = method->get_name();
-    Table current_table = current_class->featureTable;
-    Symbol ret_type = method->get_return_type();
-    Formals formals = method->get_formals();
-    Expression expr = method->get_expr();
-
-    if( class_symtable.lookup(ret_type) == NULL){
-        ostream& os = semant_error(current_class);
-        os << "method " << method_name << " return undefined type " << ret_type << endl;
-    }
-
-    if ( current_table.probe(method_name) ){
-        ostream& os = semant_error(current_class);
-        os << "method " << method_name << " is multiply defined " << endl;
-    }
-
-
-    current_table.addid(method_name,method);
-}
-
-// second scan
+// second pass, check typecheck attribute initializaton 
 void ClassTable::semant_attr_expr(c_node current_class,attr_class* attr){
     Symbol attr_name = attr->get_name();
     Table current_table = current_class->featureTable;
     Symbol attr_type = attr->get_type_decl();
     Expression init = attr->get_init();
-    semant_expr(current_class, init);
+    
+	semant_expr(current_class, init);	//typecheck the initilization expression of the attribute
 	
 	/*this is_subclass fumction checks the type compatibility of attribute type and type of the expression*/
     if ( is_subclass(attr_type , init->type,current_class->get_name()) == false ){
@@ -273,18 +293,21 @@ void ClassTable::semant_attr_expr(c_node current_class,attr_class* attr){
     
 }
 
-// second scan
+// second pass, typecheck the formals, return type and body of a method
 void ClassTable::semant_method_expr(c_node current_class,method_class* method){
     Formals formals = method->get_formals();
     Symbol ret_type = method->get_return_type();
     Table current_table = current_class->featureTable;
-    current_table.enterscope();
+    
+	current_table.enterscope(); // inside a method is a new scope
 
-
+	// typecheck the formal list of the method
     for( int i = formals->first(); formals->more(i); i = formals->next(i) ){
         Formal f = formals->nth(i);
         semant_formal(current_class,f);
     }
+	
+	// type check the body of the method
     Expression expr = method->get_expr();
 
 	if(ret_type == SELF_TYPE){
@@ -293,49 +316,52 @@ void ClassTable::semant_method_expr(c_node current_class,method_class* method){
 
     semant_expr(current_class,expr);
 
-    current_table.exitscope();
-
-	/*this is_subclass fumction checks the type compatibility of return type and type of the expression*/
+	/*this is_subclass fumction checks the type compatibility of return type and type of the body*/
     if ( is_subclass(ret_type , expr->type,current_class->get_name()) == false ){
         ostream& os = semant_error(current_class);
         os << "expression type " << expr->type <<" must conform to return type " << ret_type << "." << endl; 
     }
+
+	current_table.exitscope(); // close the scope at the end of the function
     
 }
 
 
-
+// typechecks the a formal of a method
 void ClassTable::semant_formal(c_node current_class,Formal f){
     Table current_table = current_class->featureTable;
     formal_class * formal = (formal_class*) f;
-    
+    // formal name cannot be self
     if (formal->get_name() == self){
         ostream& os = semant_error(current_class);
         os << "'self' as a formal identifier." <<endl; 
     
     }
-
+	// cannot be defined multiple times
     else if(current_table.probe(formal->get_name() ) ){
         ostream& os = semant_error(current_class);
         os << "formal " << formal->get_name() << "was defined previously." <<endl; 
     }
-    
+    // type of the formal cannot be SELF_TYPE
     if(formal->get_type_decl() == SELF_TYPE){
         ostream& os = semant_error(current_class);
         os << "SELF_TYPE as a formal type.\n";
     }
-
+	// type must be a class defined in class symbol table
     else if(class_symtable.lookup(formal->get_type_decl()) == NULL ) {
         ostream& os = semant_error(current_class);
         os << "formal " << formal->get_name() << "has undefined type " << formal->get_type_decl() << "." << endl; 
     }
+
+	// if well defined add the formal to feature table of the class inside current scope
     current_table.addid(formal->get_name(), formal);
 }
 
-
+// this function type checks for all the expression types in Cool language
+// a switch case is used do apply various typechecks for correspondic expression types
 void ClassTable::semant_expr(c_node current_class,Expression expr){
-
-    expr->type = No_type; // for error handle
+	
+    expr->type = No_type;
 
     switch (expr->get_type()){
         case assignType:
@@ -343,12 +369,15 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                 assign_class* classptr = (assign_class*) expr;
                 Table current_table = current_class->featureTable;
                 Feature feature = (Feature)current_table.lookup(classptr->get_name()); 
-                if(feature == NULL || feature->get_type() != attrType){
+				// the variable must be defined before assigning a value                
+				if(feature == NULL || feature->get_type() != attrType){
                     ostream& os = semant_error(current_class);
                     os << classptr->get_name() << " : identifier not defined.\n";
                 }
                 else {
                     semant_expr(current_class,classptr->get_expr());
+
+					// check for the type compatibility of expression and the declared type of variable
                     if(is_subclass(get_feature_type(feature),classptr->get_expr()->type,current_class->get_name())){
                         expr->type = classptr->get_expr()->type;
                     }
@@ -367,20 +396,18 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 				Symbol method_name = dispatch->get_name();
 				Symbol t = dispatch->get_type_name();
 
-		
-				
 				semant_expr(current_class,e0);
 				Symbol t0  = e0->type;
-
+				
 				if(!is_subclass(t, t0,current_class->get_name())){
 					ostream& os = semant_error(current_class);
                     os <<"Expression type " << t0 << " does not conform to declared static dispatch type " << t << "." << endl;
 				}		
 
-				
+				// find the method 
 				c_node t_class = (c_node)class_symtable.probe(t);
 				method_class *method = find_method(t_class ,method_name);
-
+				// if method is not defined => error
 				if(!method){
 					 ostream& os = semant_error(current_class);
                      os << "Dispatch to undefined method " << dispatch->get_name() << "."<<endl;
@@ -390,16 +417,16 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 
 				bool less_formals = false ;
 				Formals formals = method->get_formals();
-				int i ; 
+				int i ;
+				// checks whether formals are correctly passed
 				for(i = ens->first() ; ens->more(i); i = ens->next(i)){
 					Expression en = ens->nth(i);
 					semant_expr(current_class,en);
-
-					
+										
 					if(formals->more(i)){
 						formal_class* f = (formal_class*)formals->nth(i);
 						Symbol type_formal = f->get_type_decl();
-
+						// checks type compatibility of formal definition and passed expression
 						if(!is_subclass(type_formal , en->type,current_class->get_name())){
 							ostream& os = semant_error(current_class);
                      		os << "In call of method " << dispatch->get_name() << ", type " << en->type <<
@@ -414,11 +441,13 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 
 				}
 				
+				//if formals are not correctly passed
 				if(less_formals || formals->more(i)){
 					ostream& os = semant_error(current_class);
                     os << "Method " << dispatch->get_name() << " called with wrong number of arguments." << endl;
 				}
-
+			
+				// set the return type of dispatcher
 				Symbol m_type = method->get_return_type();
 				if(m_type == SELF_TYPE){
 					expr->type = t0;
@@ -434,6 +463,7 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
             }
         case dispatchType:
             {
+				// this is the typecheck for dynamic dispatcher, the logic is same as before (static dispatcher)
                 dispatch_class* dispatch = (dispatch_class*) expr;
 				Expression e0 = dispatch->get_expr();
 				Expressions ens = dispatch->get_actual();
@@ -502,31 +532,37 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
             }
         case condType:
             {
+				//typecheck for if-else conditions				
 				cond_class * classptr = (cond_class*)expr;
 				
 				Expression e1 = classptr->get_pred();
 				Expression e2 = classptr->get_then_exp();
 				Expression e3 = classptr->get_else_exp();
-
+				
+				//check the type of the predicate, it must be bool
 				semant_expr(current_class,e1);
 				if(e1->type!=Bool){
 					ostream& os = semant_error(current_class);
                  	os <<   "Predicate of 'if' does not have type Bool" << ".\n";
 				}
 				
+				//type check the two expressions (expression is if then clock and else block)
 				semant_expr(current_class,e2);
   				semant_expr(current_class,e3);
-
+				
+				//type of the condition expression is LUB of two expression types
 				expr->type = get_union(e2->type,e3->type);
 
                 break;
             }
         case loopType:
             {
+				//type check for while loop
 				loop_class* loop = (loop_class*) expr ;
 				Expression pred = loop->get_pred();
 				Expression body = loop->get_body();
-			
+				
+				//typecheck the predicate, it must be bool
 				semant_expr(current_class,pred);
 				Symbol pred_type = pred->type;
 				if(pred_type!=Bool){
@@ -544,18 +580,21 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 				Cases cases = typcase->get_cases();
 				Table current_table = current_class->featureTable;
 				Expression e0 = typcase->get_expr();
+				
 				semant_expr(current_class,e0);
 				
-				std::vector<Symbol> used;
+				//this vector is used to hold previously used types in branches
+				// there cannot be branches with same type
+				std::vector<Symbol> used; 
 		
 				Symbol type, prev_type ;
-   
+   				//typecheck for the branches of the case
 				for(int i = cases->first() ; cases->more(i) ; i = cases->next(i) ){
 					prev_type = type;
  
 					branch_class* c = (branch_class*)cases->nth(i);
 					Symbol type_decl = c->get_type_decl();
-					 
+					// if type is used previously => error
 					if (std::find(used.begin(), used.end(), type_decl) == used.end() ) {
             			used.push_back(type_decl);
         			} else {
@@ -567,11 +606,11 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 					current_table.enterscope();
 
 					current_table.addid(c->get_name(),c);
-
+					// typecheck the body of the branch
 					semant_expr(current_class,c->get_expr());
                     
                     type = c->get_expr()->type;
-
+					// type of the case is union of the types of branches
 					if(i>0){
 						type = get_union(type,prev_type);
 					}                    
@@ -586,12 +625,13 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 				Expressions exprs = classptr->get_body();
 				
 				Symbol last_type;
+				// typecheck each expression of the block
 				for(int i = exprs->first();exprs->more(i);i = exprs->next(i)){
 					Expression nth = exprs->nth(i);					
 					semant_expr(current_class,nth);
 					last_type = nth->type;
 				}				
-				
+				// type of the block is the type of last expression in the block
 				expr->type = last_type;
                 break;
             }
@@ -630,7 +670,6 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                   	os << "'self' cannot be bound in a 'let' expression."<< endl;
 				}
 				else{
-					/*TODO: check whether adding let node is correct*/
 					current_table.addid(identifier,classptr);
 				}				
 				
@@ -642,6 +681,8 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 				expr->type = type;
                 break;
             }
+		// typechecks for arithmatic operations and booleanoperations follows same format
+		// the oparnds must have type Int
         case plusType:
             {
                 plus_class* classptr = (plus_class*)expr;
@@ -811,11 +852,12 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
                 object_class* classptr = (object_class*) expr;
                 Table current_table = current_class->featureTable;
                 Symbol name = classptr->get_name();
-
+				// if the object name is self the type of expression is SELF TYPE
                 if(name==self){
 					expr->type = SELF_TYPE;
 				}
 				else {
+					// the object must previously defined in the scope
 					Feature feature = (Feature)current_table.lookup(name);
 		
 					if( feature == NULL || feature->get_type() == methodType){
@@ -840,9 +882,9 @@ void ClassTable::semant_expr(c_node current_class,Expression expr){
 /*
  *  subroutines that helps implement the semantic analysis
  *
- *  is_subclass(Symbol parent, Symbol child) : check if inheritance exists
+ *  is_subclass(Symbol parent, Symbol child,Symbol current_class) : check if inheritance exists
  * 
- *  get_union (Symbol type1,Symbol type2) : find the least upper bound between two input types
+ *  get_union Symbol type1,Symbol type2) : find the least upper bound between two input types
  *
  *  get_feature_type(c_node class,Feature feature):find the type of the feature
  */
