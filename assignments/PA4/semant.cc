@@ -316,13 +316,7 @@ void ClassTable::semant_method_expr(c_node current_class,method_class* method){
 
     semant_expr(current_class,expr);
 
-<<<<<<< HEAD
-	/*this is_subclass fumction checks the type compatibility of return type and type of the body*/
-=======
-    current_table.exitscope();
-
 	/*this is_subclass function checks the type compatibility of return type and type of the expression*/
->>>>>>> 48c44ec93ec81b1cef4558d21dbac18e2afeadbd
     if ( is_subclass(ret_type , expr->type,current_class->get_name()) == false ){
         ostream& os = semant_error(current_class);
         os << "expression type " << expr->type <<" must conform to return type " << ret_type << "." << endl; 
