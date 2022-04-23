@@ -1850,6 +1850,24 @@ void leq_class::code(ostream &s, Environment &env) {
 }
 
 void comp_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen((e1)) =
+     *    cgen(e1)
+     *    lw t1 12($a0) # load int value in IntObj (e1.Int)
+     * 
+     *    la $a0 bool_const1 # $a0 = Bool(true)
+     *    
+     *    # if true
+     *    beq $t1 0 endLabel
+     * 
+     *    # else    
+     *    la $a0 bool_const0 # $a0 = Bool(false)
+     *  
+     * 
+     *    endLabel:  
+     */
+
     e1->code(s, env);
     emit_fetch_int(T1, ACC, s);
 
