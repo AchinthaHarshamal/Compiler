@@ -1309,6 +1309,19 @@ void dispatch_class::code(ostream &s, Environment &env) {
 }
 
 void cond_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(pred)
+     * mov T1 $a0
+     * beq T1 0 label_false  # T1==0
+     * cgen(thenExpr)
+     * b label_end:
+     * 
+     * label_false: 
+     *      cgen(elseExpr)
+     * label_end:
+     */
+
     pred->code(s, env);
     emit_fetch_int(T1, ACC, s);
 
@@ -1326,6 +1339,20 @@ void cond_class::code(ostream &s, Environment &env) {
 }
 
 void loop_class::code(ostream &s, Environment &env) {
+    /**
+     * label_loop:
+     *      cgen(pred)
+     *      mov T1 $a0
+     *      beq T1 0 label_exit
+     *      cgen(loopbody)
+     *      b label_loop
+     * 
+     * label_exit:
+     *      move $a0 0 #return void
+     * 
+     * */
+
+
     int label_loop = label_num++;
     int label_exit = label_num++;
 
@@ -1430,6 +1457,9 @@ void typcase_class::code(ostream &s, Environment &env) {
 }
 
 void block_class::code(ostream &s, Environment &env) {
+    /**
+    * cgen(exprs_in_body)
+    */
     for (int i = body->first(); body->more(i); i = body->next(i)) {
         body->nth(i)->code(s, env);
     }
@@ -1458,6 +1488,21 @@ void let_class::code(ostream &s, Environment &env) {
 }
 
 void plus_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(e1 + e2)=
+     * 
+     * cgen(e1)
+     * sw $a0 $(sp)
+     * addiu $sp $sp -4
+     * 
+     * cgen(e2)
+     * lw $t1 4($sp)
+     * addiu $sp $sp 4
+     * 
+     * 
+     */ 
+
     // eval e1 and put the result on the stack
     e1->code(s, env);
     emit_push(ACC, s);
@@ -1643,14 +1688,23 @@ void comp_class::code(ostream &s, Environment &env) {
 }
 
 void int_const_class::code(ostream& s, Environment &env) {
+    /**
+     *  la $a0 lable
+     */
     emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
 void string_const_class::code(ostream& s, Environment &env) {
+    /**
+     * la $a0 lable
+     */
     emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
 void bool_const_class::code(ostream& s, Environment &env) {
+    /**
+     * la $a0 lable
+     */
     emit_load_bool(ACC, BoolConst(val), s);
 }
 
