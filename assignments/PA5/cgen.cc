@@ -1309,6 +1309,19 @@ void dispatch_class::code(ostream &s, Environment &env) {
 }
 
 void cond_class::code(ostream &s, Environment &env) {
+
+    /** cgen(if(pred) then thenExpr else elseExpr fi)=
+     * cgen(pred)
+     * mov T1 $a0
+     * beq T1 0 label_false  # T1==0
+     * cgen(thenExpr)
+     * b label_end:
+     * 
+     * label_false: 
+     *      cgen(elseExpr)
+     * label_end:
+     */
+
     pred->code(s, env);
     emit_fetch_int(T1, ACC, s);
 
@@ -1326,6 +1339,20 @@ void cond_class::code(ostream &s, Environment &env) {
 }
 
 void loop_class::code(ostream &s, Environment &env) {
+    /**
+     * label_loop:
+     *      cgen(pred)
+     *      mov T1 $a0
+     *      beq T1 0 label_exit
+     *      cgen(loopbody)
+     *      b label_loop
+     * 
+     * label_exit:
+     *      move $a0 0 #return void
+     * 
+     * */
+
+
     int label_loop = label_num++;
     int label_exit = label_num++;
 
@@ -1430,6 +1457,9 @@ void typcase_class::code(ostream &s, Environment &env) {
 }
 
 void block_class::code(ostream &s, Environment &env) {
+    /**
+    * cgen(exprs_in_body)
+    */
     for (int i = body->first(); body->more(i); i = body->next(i)) {
         body->nth(i)->code(s, env);
     }
@@ -1458,6 +1488,29 @@ void let_class::code(ostream &s, Environment &env) {
 }
 
 void plus_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(e1 + e2)=
+     * 
+     * cgen(e1) # Int(i1)/Int Object
+     * sw $a0 $(sp)
+     * addiu $sp $sp -4
+     * 
+     * cgen(e2) #Int(i2) # Int Object
+     * jal Object.copy # copy the Int(i2) and pointer place in $a0
+     * 
+     * lw $t1 4($sp)
+     * addiu $sp $sp 4  
+     * 
+     * mov $t2 $a0
+     * 
+     * lw t1 12($t1) # load int value in IntObj (e1.Int)
+     * lw t2 12($t2) # load int value in IntObj (e2.Int)
+     * 
+     * add $t3 $t1 $t2
+     * sw $t3 12($a0) # store the result in the new object
+     */ 
+
     // eval e1 and put the result on the stack
     e1->code(s, env);
     emit_push(ACC, s);
@@ -1465,15 +1518,15 @@ void plus_class::code(ostream &s, Environment &env) {
 
     // eval e2 and copy the object; the new object is in $a0
     e2->code(s, env);
-    emit_jal("Object.copy", s);
+    emit_jal("Object.copy", s); // new copy of Int Object to store the result
 
     // $t1 = stack_pop(); $t1 points to e1 object
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 4, s); 
     emit_load(T1, 0, SP, s);
     env.pop_stack_symbol();
 
     // $t2 = $a0; $t2 points to e2 object
-    emit_move(T2, ACC, s);
+    emit_move(T2, ACC, s);  // TODO: elmenate T2
 
     // $t1 = $t1.int
     emit_fetch_int(T1, T1, s);
@@ -1487,6 +1540,29 @@ void plus_class::code(ostream &s, Environment &env) {
 }
 
 void sub_class::code(ostream &s, Environment &env) {
+    
+    /**
+    * cgen(e1 - e2)=
+    * 
+    * cgen(e1) # Int(i1)/Int Object
+    * sw $a0 $(sp)
+    * addiu $sp $sp -4
+    * 
+    * cgen(e2) #Int(i2) # Int Object
+    * jal Object.copy # copy the Int(i2) and pointer place in $a0
+    * 
+    * lw $t1 4($sp)
+    * addiu $sp $sp 4  
+    * 
+    * mov $t2 $a0
+    * 
+    * lw t1 12($t1) # load int value in IntObj (e1.Int)
+    * lw t2 12($t2) # load int value in IntObj (e2.Int)
+    * 
+    * sub $t3 $t1 $t2
+    * sw $t3 12($a0) # store the result in the new object
+    */ 
+
     e1->code(s, env);
     emit_push(ACC, s);
     env.push_stack_symbol(No_type);
@@ -1508,6 +1584,29 @@ void sub_class::code(ostream &s, Environment &env) {
 }
 
 void mul_class::code(ostream &s, Environment &env) {
+
+    /**
+    * cgen(e1 * e2)=
+    * 
+    * cgen(e1) # Int(i1)/Int Object
+    * sw $a0 $(sp)
+    * addiu $sp $sp -4
+    * 
+    * cgen(e2) #Int(i2) # Int Object
+    * jal Object.copy # copy the Int(i2) and pointer place in $a0
+    * 
+    * lw $t1 4($sp)
+    * addiu $sp $sp 4  
+    * 
+    * mov $t2 $a0
+    * 
+    * lw t1 12($t1) # load int value in IntObj (e1.Int)
+    * lw t2 12($t2) # load int value in IntObj (e2.Int)
+    * 
+    * mul $t3 $t1 $t2
+    * sw $t3 12($a0) # store the result in the new object
+    */ 
+
     e1->code(s, env);
     emit_push(ACC, s);
     env.push_stack_symbol(No_type);
@@ -1529,6 +1628,28 @@ void mul_class::code(ostream &s, Environment &env) {
 }
 
 void divide_class::code(ostream &s, Environment &env) {
+
+    /**
+    * cgen(e1 / e2)=
+    * 
+    * cgen(e1) # Int(i1)/Int Object
+    * sw $a0 $(sp)
+    * addiu $sp $sp -4
+    * 
+    * cgen(e2) #Int(i2) # Int Object
+    * jal Object.copy # copy the Int(i2) and pointer place in $a0
+    * 
+    * lw $t1 4($sp)
+    * addiu $sp $sp 4  
+    * 
+    * mov $t2 $a0
+    * 
+    * lw t1 12($t1) # load int value in IntObj (e1.Int)
+    * lw t2 12($t2) # load int value in IntObj (e2.Int)
+    * 
+    * div $t3 $t1 $t2
+    * sw $t3 12($a0) # store the result in the new object
+    */ 
     e1->code(s, env);
     emit_push(ACC, s);
     env.push_stack_symbol(No_type);
@@ -1550,6 +1671,16 @@ void divide_class::code(ostream &s, Environment &env) {
 }
 
 void neg_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(~e1) = # Int(val)
+     *  cgen(e1)
+     *  jal Object.copy # make a copy of the e1 # $a0 = Int(val)
+     * 
+     *  mov $t1 12($a0)
+     *  neg $t1 $t1  # $t1 = ~$t1
+     *  sw $t1 12($a0) # store th $t1 in the newly created Int object
+     */ 
     e1->code(s, env);
     emit_jal("Object.copy", s);
 
@@ -1559,6 +1690,35 @@ void neg_class::code(ostream &s, Environment &env) {
 }
 
 void lt_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(e1 < e2)= # $a0 = Bool(value)
+     * 
+     * cgen(e1) # Int(i1)/Int Object
+     * sw $a0 $(sp)
+     * addiu $sp $sp -4
+     * 
+     * cgen(e2) # Int(i2) # Int Object
+     * 
+     * 
+     * lw $t1 4($sp)
+     * addiu $sp $sp 4  
+     * 
+     * mov $t2 $a0
+     * 
+     * lw t1 12($t1) # load int value in IntObj (e1.Int)
+     * lw t2 12($t2) # load int value in IntObj (e2.Int)
+     * 
+     * 
+     * la $a0 bool_const1 # $a0 = Bool(true)
+     * blt $t1 $t2 endLT
+     * 
+     * la $a0 bool_const0 # $a0 = Bool(false)
+     * 
+     * endLT:
+     * 
+     */ 
+
     e1->code(s, env);
     emit_push(ACC, s);
     env.push_stack_symbol(No_type);
@@ -1582,6 +1742,34 @@ void lt_class::code(ostream &s, Environment &env) {
 }
 
 void eq_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(e1 < e2)= # $a0 = Bool(value)
+     * 
+     * cgen(e1) # Int(i1)/Int Object
+     * sw $a0 $(sp)
+     * addiu $sp $sp -4
+     * 
+     * cgen(e2) # Int(i2) # Int Object
+     * 
+     * 
+     * lw $t1 4($sp)
+     * addiu $sp $sp 4  
+     * 
+     * mov $t2 $a0
+     * 
+     * lw t1 12($t1) # load int value in IntObj (e1.Int)
+     * lw t2 12($t2) # load int value in IntObj (e2.Int)
+     * 
+     * la $a0 bool_const1 # $a0 = Bool(true)
+     * beq $t1 $t2 endEQ
+     * 
+     * la $a0 bool_const0 # $a0 = Bool(false)
+     * 
+     * endEQ:
+     * 
+     */ 
+
     e1->code(s, env);
     emit_push(ACC, s);
     env.push_stack_symbol(No_type);
@@ -1594,12 +1782,15 @@ void eq_class::code(ostream &s, Environment &env) {
 
     emit_move(T2, ACC, s);
 
-    if (e1->type == Int || e1->type == Str || e1->type == Bool) {
-        emit_load_bool(ACC, BoolConst(1), s);
-        emit_load_bool(A1, BoolConst(0), s);
-        emit_jal("equality_test", s);
-        return;
-    }
+    emit_fetch_int(T1, T1, s);
+    emit_fetch_int(T2, T2, s);
+
+    // if (e1->type == Int || e1->type == Str || e1->type == Bool) {
+    //     emit_load_bool(ACC, BoolConst(1), s);
+    //     emit_load_bool(A1, BoolConst(0), s);
+    //     emit_jal("equality_test", s);
+    //     return;
+    // }
 
     emit_load_bool(ACC, BoolConst(1), s);
     emit_beq(T1, T2, label_num, s);
@@ -1608,6 +1799,34 @@ void eq_class::code(ostream &s, Environment &env) {
 }
 
 void leq_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(e1 < e2)= # $a0 = Bool(value)
+     * 
+     * cgen(e1) # Int(i1)/Int Object
+     * sw $a0 $(sp)
+     * addiu $sp $sp -4
+     * 
+     * cgen(e2) # Int(i2) # Int Object
+     * 
+     * 
+     * lw $t1 4($sp)
+     * addiu $sp $sp 4  
+     * 
+     * mov $t2 $a0
+     * 
+     * lw t1 12($t1) # load int value in IntObj (e1.Int)
+     * lw t2 12($t2) # load int value in IntObj (e2.Int)
+     * 
+     * la $a0 bool_const1 # $a0 = Bool(true)
+     * bleq $t1 $t2 endEQ
+     * 
+     * la $a0 bool_const0 # $a0 = Bool(false)
+     * 
+     * endLEQ:
+     * 
+     */ 
+
     e1->code(s, env);
     emit_push(ACC, s);
     env.push_stack_symbol(No_type);
@@ -1643,14 +1862,23 @@ void comp_class::code(ostream &s, Environment &env) {
 }
 
 void int_const_class::code(ostream& s, Environment &env) {
+    /**
+     *  la $a0 lable # $a0 = Int(i)
+     */
     emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
 void string_const_class::code(ostream& s, Environment &env) {
+    /**
+     * la $a0 string_const # $a0 = String(string)
+     */
     emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
 void bool_const_class::code(ostream& s, Environment &env) {
+    /**
+     * la $a0 bool_const # $a0 = bool(boolval)
+     */
     emit_load_bool(ACC, BoolConst(val), s);
 }
 
@@ -1689,6 +1917,22 @@ void new__class::code(ostream &s, Environment &env) {
 }
 
 void isvoid_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(isvoid e1) =
+     *    cgen(e1)
+     *    mov $t1 $a0
+     *    la $a0 bool_const1 # $a0 = Bool(true)
+     *    
+     *    # if true
+     *    beq $t1 0 endLabel
+     * 
+     *    # else    
+     *    la $a0 bool_const0 # $a0 = Bool(false)
+     *  
+     * 
+     *    endLabel:  
+     */
     e1->code(s, env);
     emit_move(T1, ACC, s);
 
@@ -1701,6 +1945,10 @@ void isvoid_class::code(ostream &s, Environment &env) {
 }
 
 void no_expr_class::code(ostream &s, Environment &env) {
+    /**
+     * cgen(no_expr)=
+     * mov $a0 0
+     */
     emit_move(ACC, ZERO, s);
 }
 
