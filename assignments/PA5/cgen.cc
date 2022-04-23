@@ -1680,6 +1680,36 @@ void neg_class::code(ostream &s, Environment &env) {
 }
 
 void lt_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(e1 < e2)= # $a0 = Bool(value)
+     * 
+     * cgen(e1) # Int(i1)/Int Object
+     * sw $a0 $(sp)
+     * addiu $sp $sp -4
+     * 
+     * cgen(e2) #Int(i2) # Int Object
+     * jal Object.copy # copy the Int(i2) and pointer place in $a0
+     * 
+     * lw $t1 4($sp)
+     * addiu $sp $sp 4  
+     * 
+     * mov $t2 $a0
+     * 
+     * lw t1 12($t1) # load int value in IntObj (e1.Int)
+     * lw t2 12($t2) # load int value in IntObj (e2.Int)
+     * 
+     * 
+     * la $a0 bool_const1 # $a0 = Bool(true)
+     * blt $t1 $t2 endLT
+     * 
+     * la $a0 bool_const0 # $a0 = Bool(false)
+     * 
+     * endLT:
+     * 
+     * 
+     */ 
+
     e1->code(s, env);
     emit_push(ACC, s);
     env.push_stack_symbol(No_type);
@@ -1765,21 +1795,21 @@ void comp_class::code(ostream &s, Environment &env) {
 
 void int_const_class::code(ostream& s, Environment &env) {
     /**
-     *  la $a0 lable
+     *  la $a0 lable # $a0 = Int(i)
      */
     emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
 void string_const_class::code(ostream& s, Environment &env) {
     /**
-     * la $a0 lable
+     * la $a0 string_const # $a0 = String(string)
      */
     emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
 void bool_const_class::code(ostream& s, Environment &env) {
     /**
-     * la $a0 lable
+     * la $a0 bool_const # $a0 = bool(boolval)
      */
     emit_load_bool(ACC, BoolConst(val), s);
 }
