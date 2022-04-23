@@ -1688,8 +1688,8 @@ void lt_class::code(ostream &s, Environment &env) {
      * sw $a0 $(sp)
      * addiu $sp $sp -4
      * 
-     * cgen(e2) #Int(i2) # Int Object
-     * jal Object.copy # copy the Int(i2) and pointer place in $a0
+     * cgen(e2) # Int(i2) # Int Object
+     * 
      * 
      * lw $t1 4($sp)
      * addiu $sp $sp 4  
@@ -1706,7 +1706,6 @@ void lt_class::code(ostream &s, Environment &env) {
      * la $a0 bool_const0 # $a0 = Bool(false)
      * 
      * endLT:
-     * 
      * 
      */ 
 
@@ -1733,6 +1732,34 @@ void lt_class::code(ostream &s, Environment &env) {
 }
 
 void eq_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(e1 < e2)= # $a0 = Bool(value)
+     * 
+     * cgen(e1) # Int(i1)/Int Object
+     * sw $a0 $(sp)
+     * addiu $sp $sp -4
+     * 
+     * cgen(e2) # Int(i2) # Int Object
+     * 
+     * 
+     * lw $t1 4($sp)
+     * addiu $sp $sp 4  
+     * 
+     * mov $t2 $a0
+     * 
+     * lw t1 12($t1) # load int value in IntObj (e1.Int)
+     * lw t2 12($t2) # load int value in IntObj (e2.Int)
+     * 
+     * la $a0 bool_const1 # $a0 = Bool(true)
+     * beq $t1 $t2 endEQ
+     * 
+     * la $a0 bool_const0 # $a0 = Bool(false)
+     * 
+     * endEQ:
+     * 
+     */ 
+
     e1->code(s, env);
     emit_push(ACC, s);
     env.push_stack_symbol(No_type);
@@ -1745,12 +1772,15 @@ void eq_class::code(ostream &s, Environment &env) {
 
     emit_move(T2, ACC, s);
 
-    if (e1->type == Int || e1->type == Str || e1->type == Bool) {
-        emit_load_bool(ACC, BoolConst(1), s);
-        emit_load_bool(A1, BoolConst(0), s);
-        emit_jal("equality_test", s);
-        return;
-    }
+    emit_fetch_int(T1, T1, s);
+    emit_fetch_int(T2, T2, s);
+
+    // if (e1->type == Int || e1->type == Str || e1->type == Bool) {
+    //     emit_load_bool(ACC, BoolConst(1), s);
+    //     emit_load_bool(A1, BoolConst(0), s);
+    //     emit_jal("equality_test", s);
+    //     return;
+    // }
 
     emit_load_bool(ACC, BoolConst(1), s);
     emit_beq(T1, T2, label_num, s);
@@ -1759,6 +1789,34 @@ void eq_class::code(ostream &s, Environment &env) {
 }
 
 void leq_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(e1 < e2)= # $a0 = Bool(value)
+     * 
+     * cgen(e1) # Int(i1)/Int Object
+     * sw $a0 $(sp)
+     * addiu $sp $sp -4
+     * 
+     * cgen(e2) # Int(i2) # Int Object
+     * 
+     * 
+     * lw $t1 4($sp)
+     * addiu $sp $sp 4  
+     * 
+     * mov $t2 $a0
+     * 
+     * lw t1 12($t1) # load int value in IntObj (e1.Int)
+     * lw t2 12($t2) # load int value in IntObj (e2.Int)
+     * 
+     * la $a0 bool_const1 # $a0 = Bool(true)
+     * bleq $t1 $t2 endEQ
+     * 
+     * la $a0 bool_const0 # $a0 = Bool(false)
+     * 
+     * endLEQ:
+     * 
+     */ 
+
     e1->code(s, env);
     emit_push(ACC, s);
     env.push_stack_symbol(No_type);
