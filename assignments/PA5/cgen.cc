@@ -1671,6 +1671,16 @@ void divide_class::code(ostream &s, Environment &env) {
 }
 
 void neg_class::code(ostream &s, Environment &env) {
+
+    /**
+     * cgen(~e1) = # Int(val)
+     *  cgen(e1)
+     *  jal Object.copy # make a copy of the e1 # $a0 = Int(val)
+     * 
+     *  mov $t1 12($a0)
+     *  neg $t1 $t1  # $t1 = ~$t1
+     *  sw $t1 12($a0) # store th $t1 in the newly created Int object
+     */ 
     e1->code(s, env);
     emit_jal("Object.copy", s);
 
