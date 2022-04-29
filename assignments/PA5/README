@@ -207,7 +207,7 @@ Then the constructor of the CgenClassTable performs the all of the work of code 
 	- no_expr_class
 	- object_class
 
-In our case,we mainly used a few registers
+In our case,we mainly used few registers
 
 		$zero	// Zero register
 		$a0		// Accumulator
@@ -220,13 +220,13 @@ In our case,we mainly used a few registers
 		$fp		// Frame pointer
 		$ra		// Return address
 
-(For the convenient Instead of only using $a0(accumulator) & Only one temporary register here we used $a0, $a1,$t1,$t2,$t3)
+Other than registers, $a0 and $t1 (accumulator and only one tempory register),three other registers $a1,$t2 and $t3 for the convient.  
 
 
 Here are a few examples of what is implemented in code generation functions.
 
-- cond_class
-
+- code generation for cond_class
+		
 		```
 		cgen(if(pred) then thenExpr else elseExpr fi)=
 			cgen(pred)
@@ -253,8 +253,11 @@ Here are a few examples of what is implemented in code generation functions.
 		label_exit:
 		   move $a0 0 #return void
 		```
-  
-    
+ 
+- block_class
+	In a block there is only one expression inside it.
+	cgen(exprs_in_body), generates the code for block
+
 - plus_class
 		```
 		   cgen(e1 + e2)=
@@ -278,8 +281,157 @@ Here are a few examples of what is implemented in code generation functions.
 			   sw $t3 12($a0) # store the result in the new object
     	```
 
-We tested our code generator with various programs and checked output whether the are as expected. Results were good at a high percentage and didn't identify any bugs. Therefore we can assume our code generator works fine.
+-sub_class
+	```	
+		cgen(e1 - e2)=
+		 cgen(e1) # Int(i1)/Int Object
+		 sw $a0 $(sp)
+		 addiu $sp $sp -4
+		 
+		 cgen(e2) #Int(i2) # Int Object
+		 jal Object.copy # copy the Int(i2) and pointer place in $a0
+		 
+		 lw $t1 4($sp)
+		 addiu $sp $sp 4  
+		 
+		 mov $t2 $a0
+		 
+		 lw t1 12($t1) # load int value in IntObj (e1.Int)
+		 lw t2 12($t2) # load int value in IntObj (e2.Int)
+		 
+		 sub $t3 $t1 $t2
+		 sw $t3 12($a0) # store the result in the new object
+	```
 
-### TODO
+-mul_class
+	```
+	cgen(e1 * e2)= 
+		 cgen(e1) # Int(i1)/Int Object
+		 sw $a0 $(sp)
+		 addiu $sp $sp -4
+		 
+		 cgen(e2) #Int(i2) # Int Object
+		 jal Object.copy # copy the Int(i2) and pointer place in $a0
+		 
+		 lw $t1 4($sp)
+		 addiu $sp $sp 4  
+		 
+		 mov $t2 $a0
+		 
+		 lw t1 12($t1) # load int value in IntObj (e1.Int)
+		 lw t2 12($t2) # load int value in IntObj (e2.Int)
+		 
+		 mul $t3 $t1 $t2
+		 sw $t3 12($a0) # store the result in the new object
+	```
+
+-divide_class
+	```
+	gen(e1 / e2)=
+     cgen(e1) # Int(i1)/Int Object
+     sw $a0 $(sp)
+     addiu $sp $sp -4
+     
+     cgen(e2) #Int(i2) # Int Object
+     jal Object.copy # copy the Int(i2) and pointer place in $a0
+     
+     lw $t1 4($sp)
+     addiu $sp $sp 4  
+     
+     mov $t2 $a0
+     
+     lw t1 12($t1) # load int value in IntObj (e1.Int)
+     lw t2 12($t2) # load int value in IntObj (e2.Int)
+     
+     div $t3 $t1 $t2
+     sw $t3 12($a0) # store the result in the new object
+	```
+-neg_class
+	```
+		cgen(~e1) = # Int(val)
+    	   cgen(e1)
+    	   jal Object.copy # make a copy of the e1 # $a0 = Int(val)
+    	  
+    	   mov $t1 12($a0)
+    	   neg $t1 $t1  # $t1 = ~$t1
+    	   sw $t1 12($a0) # store th $t1 in the newly created Int object
+	```
+
+-lt_class
+	```
+	cgen(e1 < e2)= 
+      cgen(e1) # Int(i1)/Int Object
+      sw $a0 $(sp)
+      addiu $sp $sp -4
+      
+      cgen(e2) # Int(i2) # Int Object
+      
+      
+      lw $t1 4($sp)
+      addiu $sp $sp 4  
+      
+      mov $t2 $a0
+      
+      lw t1 12($t1) # load int value in IntObj (e1.Int)
+      lw t2 12($t2) # load int value in IntObj (e2.Int)
+      
+      
+      la $a0 bool_const1 # $a0 = Bool(true)
+      blt $t1 $t2 endLT
+      
+      la $a0 bool_const0 # $a0 = Bool(false)
+
+	  endLT: 
+	```
+
+-leq_class
+	```
+	cgen(e1 < e2)= # $a0 = Bool(value) 
+      cgen(e1) # Int(i1)/Int Object
+      sw $a0 $(sp)
+      addiu $sp $sp -4
+      
+      cgen(e2) # Int(i2) # Int Object
+      
+      
+      lw $t1 4($sp)
+      addiu $sp $sp 4  
+      
+      mov $t2 $a0
+      
+      lw t1 12($t1) # load int value in IntObj (e1.Int)
+      lw t2 12($t2) # load int value in IntObj (e2.Int)
+      
+      la $a0 bool_const1 # $a0 = Bool(true)
+      bleq $t1 $t2 endEQ
+      
+      la $a0 bool_const0 # $a0 = Bool(false)
+      
+      endLEQ:
+	```
+
+-isvoid
+
+	```
+	cgen(isvoid e1) =
+         cgen(e1)
+         mov $t1 $a0
+         la $a0 bool_const1 # $a0 = Bool(true)
+         
+         # if true
+         beq $t1 0 endLabel
+      
+         # else    
+         la $a0 bool_const0 # $a0 = Bool(false)
+       
+      
+         endLabel:	
+	```
+
+
+
+We tested our code generator with various programs and checked output, whether they are as expected. Results were good at a high percentage and didn't identify any bugs. Therefore we can assume our code generator works fine.
+
+### improvements TODO
 - Reduceing  registers usage  only to $a0
 - Reduce the temporary registers usage only to $t1 
